@@ -27,7 +27,8 @@ var pushCmd = &cobra.Command{
 Examples:
   share push "hello world"                   # push text
   share push "hello" --ttl 7200              # push text with 2h TTL
-  echo "piped" | share push -                # push from stdin as text
+  share push                                 # read text from stdin
+  echo "piped" | share push                  # pipe text from stdin
   share push -f ./report.pdf                 # push a file
   share push -f ./notes.txt --filename a.txt # push file with custom name`,
 	Args: cobra.MaximumNArgs(1),
@@ -49,28 +50,15 @@ func runPush(cmd *cobra.Command, args []string) {
 	}
 
 	var text string
-	if len(args) == 1 && args[0] == "-" {
+	if len(args) == 1 && args[0] != "-" {
+		text = args[0]
+	} else {
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
 			os.Exit(1)
 		}
 		text = string(data)
-	} else if len(args) == 1 {
-		text = args[0]
-	} else {
-		stat, _ := os.Stdin.Stat()
-		if (stat.Mode() & os.ModeCharDevice) == 0 {
-			data, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
-				os.Exit(1)
-			}
-			text = string(data)
-		} else {
-			fmt.Fprintln(os.Stderr, "Error: provide text as argument, pipe via stdin, or use -f for file upload")
-			os.Exit(1)
-		}
 	}
 
 	pushTextContent(text)

@@ -22,12 +22,17 @@ type APIResponse struct {
 	RequestID string          `json:"request_id"`
 }
 
-func NewClient(baseURL, token string) *Client {
+func NewClient(baseURL, token string, noProxy bool) *Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if noProxy {
+		transport.Proxy = nil
+	}
 	return &Client{
 		BaseURL: baseURL,
 		Token:   token,
 		HTTPClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout:   120 * time.Second,
+			Transport: transport,
 		},
 	}
 }
