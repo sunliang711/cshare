@@ -178,7 +178,7 @@ func (s *ShareService) resolveTTL(requested int) int {
 	if requested == 0 {
 		return s.config.Business.DefaultTTL
 	}
-	if requested < 60 || requested > s.config.Business.MaxTTL {
+	if requested < 0 || requested > s.config.Business.MaxTTL {
 		return -1
 	}
 	return requested

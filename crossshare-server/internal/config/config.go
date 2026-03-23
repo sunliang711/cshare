@@ -67,7 +67,7 @@ func New() (*Config, error) {
 	v.SetDefault("server.port", 10431)
 	v.SetDefault("auth.enable", false)
 	v.SetDefault("auth.jwt_header_name", "Authorization")
-	v.SetDefault("business.default_ttl", 3600)
+	v.SetDefault("business.default_ttl", 600)
 	v.SetDefault("business.max_ttl", 2592000)
 	v.SetDefault("business.text_json_limit", 1<<20)
 	v.SetDefault("business.binary_push_limit", 20<<20)
