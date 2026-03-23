@@ -21,6 +21,10 @@ Push text or files, pull them by key, and manage shared content
 from the command line.`,
 }
 
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
