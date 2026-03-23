@@ -1,0 +1,43 @@
+server:
+  port: 10431
+  tls_enable: false
+  crt_path: ""
+  key_path: ""
+
+auth:
+  enable: false
+  jwt_secret: "change-me-in-production"
+  jwt_header_name: "Authorization"
+
+business:
+  default_ttl: 3600
+  max_ttl: 2592000
+  text_json_limit: 1048576      # 1MB
+  binary_push_limit: 20971520   # 20MB
+
+ratelimit:
+  enable: true
+  requests_per_minute: 60
+
+cors:
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "DELETE"
+    - "OPTIONS"
+  allow_headers:
+    - "Content-Type"
+    - "Authorization"
+    - "X-Request-Id"
+    - "Filename"
+    - "X-Content-Type"
+    - "X-TTL"
+    - "Accept"
+    - "Delete-After-Pull"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0

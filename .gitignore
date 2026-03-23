@@ -1,0 +1,12 @@
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+.env
+.DS_Store
+*.swp
+.idea/
