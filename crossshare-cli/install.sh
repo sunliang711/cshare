@@ -99,7 +99,18 @@ else
     echo "Checksum verified."
 fi
 
-mkdir -p "$INSTALL_DIR"
-install -m 755 "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/share"
+SUDO=""
+if [ ! -w "$INSTALL_DIR" ] 2>/dev/null || { [ ! -d "$INSTALL_DIR" ] && ! mkdir -p "$INSTALL_DIR" 2>/dev/null; }; then
+    if command -v sudo >/dev/null 2>&1; then
+        echo "Need sudo to install to ${INSTALL_DIR}"
+        SUDO="sudo"
+    else
+        echo "Error: no write permission to ${INSTALL_DIR} and sudo not available"
+        exit 1
+    fi
+fi
+
+$SUDO mkdir -p "$INSTALL_DIR"
+$SUDO install -m 755 "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/share"
 
 echo "Installed share ${VERSION} to ${INSTALL_DIR}/share"
