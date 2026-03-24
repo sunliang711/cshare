@@ -77,11 +77,15 @@ func (c *Client) doJSON(method, path string, body interface{}, headers map[strin
 		req.Header.Set(k, v)
 	}
 
+	debugLog.Printf("%s %s", method, req.URL)
+
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	debugLog.Printf("response: %s", resp.Status)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -93,6 +97,7 @@ func (c *Client) doJSON(method, path string, body interface{}, headers map[strin
 		return nil, fmt.Errorf("server returned non-JSON (HTTP %d): %s", resp.StatusCode, string(respBody))
 	}
 
+	debugLog.Printf("code: %d, msg: %s", apiResp.Code, apiResp.Msg)
 	return &apiResp, nil
 }
 
@@ -107,10 +112,13 @@ func (c *Client) doRaw(method, path string, body io.Reader, headers map[string]s
 		req.Header.Set(k, v)
 	}
 
+	debugLog.Printf("%s %s", method, req.URL)
+
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
+	debugLog.Printf("response: %s", resp.Status)
 	return resp, nil
 }
