@@ -47,6 +47,7 @@
   $("#healthCheck").addEventListener("click", async () => {
     const el = $("#healthStatus");
     el.textContent = "检查中…";
+    el.style.color = "var(--text2)";
     try {
       const resp = await fetch(apiUrl("/health"), {
         headers: authHeaders(),
@@ -196,7 +197,7 @@
   });
 
   $("#copyKey").addEventListener("click", () => {
-    navigator.clipboard.writeText($("#resultKey").textContent);
+    copyText($("#resultKey").textContent);
     toast("Key 已复制", "success");
   });
 
@@ -221,7 +222,6 @@
         headers["Delete-After-Pull"] = "true";
       }
 
-      // try JSON first for text
       const jsonResp = await fetch(apiUrl("/pull/" + key), {
         headers: { ...headers, Accept: "application/json" },
       });
@@ -249,7 +249,6 @@
         }
       }
 
-      // binary / stream fallback
       const streamResp = await fetch(apiUrl("/pull/" + key), { headers });
       if (!streamResp.ok) {
         const errData = await streamResp.json().catch(() => null);
@@ -292,7 +291,7 @@
   });
 
   $("#copyText").addEventListener("click", () => {
-    navigator.clipboard.writeText($("#pullTextContent").textContent);
+    copyText($("#pullTextContent").textContent);
     toast("内容已复制", "success");
   });
 
@@ -330,6 +329,24 @@
   });
 
   // ── Helpers ───────────────────────────────────────────────
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => copyFallback(text));
+    } else {
+      copyFallback(text);
+    }
+  }
+
+  function copyFallback(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
 
   function humanSize(bytes) {
     if (bytes < 1024) return bytes + " B";
@@ -370,4 +387,5 @@
       }
     }
   });
+
 })();
