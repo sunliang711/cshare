@@ -30,6 +30,7 @@ func New(client *redis.Client, logger zerolog.Logger) *RedisStorage {
 func NewRedisStorage(lc fx.Lifecycle, cfg *config.Config, logger zerolog.Logger) *RedisStorage {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr,
+		Username: cfg.Redis.Username,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})

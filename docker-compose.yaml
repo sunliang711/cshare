@@ -7,6 +7,8 @@ services:
     environment:
       - CS_STORAGE_TYPE=redis
       - CS_REDIS_ADDR=redis:6379
+      - CS_REDIS_USERNAME=
+      - CS_REDIS_PASSWORD=
       - CS_RATELIMIT_REQUESTS_PER_MINUTE=10
     depends_on:
       redis:
