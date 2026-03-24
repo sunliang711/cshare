@@ -6,6 +6,7 @@ services:
       - "10431:10431"
     environment:
       - CS_REDIS_ADDR=redis:6379
+      - CS_RATELIMIT_REQUESTS_PER_MINUTE=5
     depends_on:
       redis:
         condition: service_healthy

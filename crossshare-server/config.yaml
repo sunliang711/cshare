@@ -17,7 +17,7 @@ business:
 
 ratelimit:
   enable: true
-  requests_per_minute: 60
+  requests_per_minute: 10
 
 cors:
   allow_origins:
