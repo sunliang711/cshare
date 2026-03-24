@@ -333,18 +333,36 @@
   function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).catch(() => copyFallback(text));
-    } else {
-      copyFallback(text);
+      return;
     }
+    copyFallback(text);
   }
 
   function copyFallback(text) {
     const ta = document.createElement("textarea");
     ta.value = text;
-    ta.style.cssText = "position:fixed;opacity:0";
+    ta.setAttribute("readonly", "");
+    ta.style.cssText =
+      "position:fixed;left:-9999px;top:0;opacity:0;font-size:16px";
     document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
+
+    const isiOS = /ipad|iphone|ipod/i.test(navigator.userAgent);
+    if (isiOS) {
+      const range = document.createRange();
+      range.selectNodeContents(ta);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      ta.setSelectionRange(0, text.length);
+    } else {
+      ta.select();
+    }
+
+    try {
+      document.execCommand("copy");
+    } catch {
+      // ignore
+    }
     document.body.removeChild(ta);
   }
 
