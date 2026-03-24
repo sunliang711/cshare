@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,7 @@ import (
 	"crossshare-server/internal/config"
 	"crossshare-server/internal/handler"
 	"crossshare-server/internal/middleware"
+	"crossshare-server/web"
 )
 
 var Module = fx.Options(
@@ -63,6 +65,11 @@ func New(p Params) *http.Server {
 			pull.DELETE("/:key", p.PullHandler.Delete)
 		}
 	}
+
+	staticFS, _ := fs.Sub(web.StaticFiles, ".")
+	r.GET("/", gin.WrapH(http.FileServer(http.FS(staticFS))))
+	r.GET("/style.css", gin.WrapH(http.FileServer(http.FS(staticFS))))
+	r.GET("/app.js", gin.WrapH(http.FileServer(http.FS(staticFS))))
 
 	addr := fmt.Sprintf(":%d", p.Config.Server.Port)
 	srv := &http.Server{
