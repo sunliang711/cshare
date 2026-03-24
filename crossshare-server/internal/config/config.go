@@ -17,7 +17,12 @@ type Config struct {
 	Business  BusinessConfig  `mapstructure:"business"`
 	RateLimit RateLimitConfig `mapstructure:"ratelimit"`
 	CORS      CORSConfig      `mapstructure:"cors"`
+	Storage   StorageConfig   `mapstructure:"storage"`
 	Redis     RedisConfig     `mapstructure:"redis"`
+}
+
+type StorageConfig struct {
+	Type string `mapstructure:"type"`
 }
 
 type ServerConfig struct {
@@ -80,6 +85,7 @@ func New() (*Config, error) {
 		"Filename", "X-Content-Type", "X-TTL",
 		"Accept", "Delete-After-Pull",
 	})
+	v.SetDefault("storage.type", "redis")
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)

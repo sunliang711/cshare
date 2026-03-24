@@ -37,6 +37,9 @@ cors:
     - "Accept"
     - "Delete-After-Pull"
 
+storage:
+  type: memory        # redis | memory
+
 redis:
   addr: "localhost:6379"
   password: ""

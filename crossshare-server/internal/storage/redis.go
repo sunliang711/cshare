@@ -14,10 +14,6 @@ import (
 	"crossshare-server/internal/model"
 )
 
-var Module = fx.Options(
-	fx.Provide(NewRedisStorage),
-)
-
 type RedisStorage struct {
 	client *redis.Client
 	logger zerolog.Logger

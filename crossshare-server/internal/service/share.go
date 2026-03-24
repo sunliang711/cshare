@@ -21,12 +21,12 @@ var Module = fx.Options(
 )
 
 type ShareService struct {
-	storage *storage.RedisStorage
+	storage storage.Storage
 	config  *config.Config
 	logger  zerolog.Logger
 }
 
-func NewShareService(s *storage.RedisStorage, cfg *config.Config, logger zerolog.Logger) *ShareService {
+func NewShareService(s storage.Storage, cfg *config.Config, logger zerolog.Logger) *ShareService {
 	return &ShareService{
 		storage: s,
 		config:  cfg,
