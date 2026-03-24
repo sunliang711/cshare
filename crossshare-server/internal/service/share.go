@@ -67,12 +67,29 @@ func (s *ShareService) PushText(ctx context.Context, req *PushTextRequest) (*mod
 		contentType = "text/plain; charset=utf-8"
 	}
 
-	key, err := s.generateUniqueKey(ctx)
+	key, exists, err := s.resolveKey(ctx, content)
 	if err != nil {
 		return nil, err
 	}
 
 	now := time.Now().Unix()
+	expireAt := now + int64(ttl)
+
+	if exists {
+		if err := s.storage.Expire(ctx, key, time.Duration(ttl)*time.Second); err != nil {
+			s.logger.Error().Err(err).Str("key", key).Msg("failed to refresh ttl")
+			return nil, apperr.ErrStorageInternal
+		}
+		s.logger.Debug().Str("key", key).Msg("dedup hit, refreshed ttl")
+		return &model.PushResult{
+			Key:      key,
+			TTL:      ttl,
+			Size:     len(content),
+			Type:     "text",
+			ExpireAt: expireAt,
+		}, nil
+	}
+
 	share := &model.Share{
 		Key:         key,
 		Name:        sanitizeFilename(req.Filename),
@@ -81,7 +98,7 @@ func (s *ShareService) PushText(ctx context.Context, req *PushTextRequest) (*mod
 		ContentSize: len(content),
 		Hash:        hashContent(content),
 		CreatedAt:   now,
-		ExpireAt:    now + int64(ttl),
+		ExpireAt:    expireAt,
 		Creator:     req.Creator,
 		Type:        "text",
 	}
@@ -115,13 +132,34 @@ func (s *ShareService) PushBinary(ctx context.Context, req *PushBinaryRequest) (
 		contentType = "application/octet-stream"
 	}
 
-	key, err := s.generateUniqueKey(ctx)
+	key, exists, err := s.resolveKey(ctx, req.Data)
 	if err != nil {
 		return nil, err
 	}
 
 	filename := sanitizeFilename(req.Filename)
 	now := time.Now().Unix()
+	expireAt := now + int64(ttl)
+
+	if exists {
+		if err := s.storage.Expire(ctx, key, time.Duration(ttl)*time.Second); err != nil {
+			s.logger.Error().Err(err).Str("key", key).Msg("failed to refresh ttl")
+			return nil, apperr.ErrStorageInternal
+		}
+		s.logger.Debug().Str("key", key).Msg("dedup hit, refreshed ttl")
+		result := &model.PushResult{
+			Key:      key,
+			TTL:      ttl,
+			Size:     len(req.Data),
+			Type:     "binary",
+			ExpireAt: expireAt,
+		}
+		if filename != "" {
+			result.Filename = filename
+		}
+		return result, nil
+	}
+
 	share := &model.Share{
 		Key:         key,
 		Name:        filename,
@@ -130,7 +168,7 @@ func (s *ShareService) PushBinary(ctx context.Context, req *PushBinaryRequest) (
 		ContentSize: len(req.Data),
 		Hash:        hashContent(req.Data),
 		CreatedAt:   now,
-		ExpireAt:    now + int64(ttl),
+		ExpireAt:    expireAt,
 		Creator:     req.Creator,
 		Type:        "binary",
 	}
@@ -184,22 +222,31 @@ func (s *ShareService) resolveTTL(requested int) int {
 	return requested
 }
 
-func (s *ShareService) generateUniqueKey(ctx context.Context) (string, error) {
-	const maxRetries = 5
-	for i := 0; i < maxRetries; i++ {
-		key, err := keygen.Generate(8)
+const (
+	minKeyLen = 6
+	maxKeyLen = 12
+)
+
+// resolveKey derives a deterministic key from content hash (base62-encoded prefix).
+// Returns the key, whether identical content already exists, and any error.
+// On hash-prefix collision with different content, the prefix length is extended.
+func (s *ShareService) resolveKey(ctx context.Context, content []byte) (string, bool, error) {
+	hashBytes := sha256.Sum256(content)
+	hashHex := fmt.Sprintf("%x", hashBytes)
+	for length := minKeyLen; length <= maxKeyLen; length++ {
+		key := keygen.FromHash(hashBytes[:], length)
+		storedHash, err := s.storage.GetHash(ctx, key)
 		if err != nil {
-			return "", fmt.Errorf("keygen: %w", err)
+			return "", false, apperr.ErrStorageInternal
 		}
-		exists, err := s.storage.Exists(ctx, key)
-		if err != nil {
-			return "", apperr.ErrStorageInternal
+		if storedHash == "" {
+			return key, false, nil
 		}
-		if !exists {
-			return key, nil
+		if storedHash == hashHex {
+			return key, true, nil
 		}
 	}
-	return "", apperr.ErrStorageInternal
+	return "", false, apperr.ErrStorageInternal
 }
 
 func hashContent(data []byte) string {

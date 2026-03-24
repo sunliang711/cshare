@@ -144,3 +144,22 @@ func (s *RedisStorage) Exists(ctx context.Context, key string) (bool, error) {
 	}
 	return n > 0, nil
 }
+
+func (s *RedisStorage) GetHash(ctx context.Context, key string) (string, error) {
+	metaStr, err := s.client.HGet(ctx, redisKey(key), "meta").Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var meta shareMeta
+	if err := json.Unmarshal([]byte(metaStr), &meta); err != nil {
+		return "", fmt.Errorf("unmarshal meta: %w", err)
+	}
+	return meta.Hash, nil
+}
+
+func (s *RedisStorage) Expire(ctx context.Context, key string, ttl time.Duration) error {
+	return s.client.Expire(ctx, redisKey(key), ttl).Err()
+}
