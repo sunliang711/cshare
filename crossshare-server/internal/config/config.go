@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v3"
 )
 
 var Module = fx.Options(
@@ -12,69 +13,64 @@ var Module = fx.Options(
 )
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	Business  BusinessConfig  `mapstructure:"business"`
-	RateLimit RateLimitConfig `mapstructure:"ratelimit"`
-	CORS      CORSConfig      `mapstructure:"cors"`
-	Storage   StorageConfig   `mapstructure:"storage"`
-	Redis     RedisConfig     `mapstructure:"redis"`
+	Server    ServerConfig    `mapstructure:"server" yaml:"server"`
+	Auth      AuthConfig      `mapstructure:"auth" yaml:"auth"`
+	Business  BusinessConfig  `mapstructure:"business" yaml:"business"`
+	RateLimit RateLimitConfig `mapstructure:"ratelimit" yaml:"ratelimit"`
+	CORS      CORSConfig      `mapstructure:"cors" yaml:"cors"`
+	Storage   StorageConfig   `mapstructure:"storage" yaml:"storage"`
+	Redis     RedisConfig     `mapstructure:"redis" yaml:"redis"`
 }
 
 type StorageConfig struct {
-	Type string `mapstructure:"type"`
+	Type string `mapstructure:"type" yaml:"type"`
 }
 
 type ServerConfig struct {
-	Port      int    `mapstructure:"port"`
-	TLSEnable bool   `mapstructure:"tls_enable"`
-	CrtPath   string `mapstructure:"crt_path"`
-	KeyPath   string `mapstructure:"key_path"`
+	Port      int    `mapstructure:"port" yaml:"port"`
+	TLSEnable bool   `mapstructure:"tls_enable" yaml:"tls_enable"`
+	CrtPath   string `mapstructure:"crt_path" yaml:"crt_path"`
+	KeyPath   string `mapstructure:"key_path" yaml:"key_path"`
 }
 
 type AuthConfig struct {
-	Enable        bool   `mapstructure:"enable"`
-	JWTSecret     string `mapstructure:"jwt_secret"`
-	JWTHeaderName string `mapstructure:"jwt_header_name"`
+	Enable        bool   `mapstructure:"enable" yaml:"enable"`
+	JWTSecret     string `mapstructure:"jwt_secret" yaml:"jwt_secret"`
+	JWTHeaderName string `mapstructure:"jwt_header_name" yaml:"jwt_header_name"`
 }
 
 type BusinessConfig struct {
-	DefaultTTL      int   `mapstructure:"default_ttl"`
-	MaxTTL          int   `mapstructure:"max_ttl"`
-	TextJSONLimit   int64 `mapstructure:"text_json_limit"`
-	BinaryPushLimit int64 `mapstructure:"binary_push_limit"`
+	DefaultTTL      int   `mapstructure:"default_ttl" yaml:"default_ttl"`
+	MaxTTL          int   `mapstructure:"max_ttl" yaml:"max_ttl"`
+	TextJSONLimit   int64 `mapstructure:"text_json_limit" yaml:"text_json_limit"`
+	BinaryPushLimit int64 `mapstructure:"binary_push_limit" yaml:"binary_push_limit"`
 }
 
 type RateLimitConfig struct {
-	Enable            bool `mapstructure:"enable"`
-	RequestsPerMinute int  `mapstructure:"requests_per_minute"`
+	Enable            bool `mapstructure:"enable" yaml:"enable"`
+	RequestsPerMinute int  `mapstructure:"requests_per_minute" yaml:"requests_per_minute"`
 }
 
 type CORSConfig struct {
-	AllowOrigins []string `mapstructure:"allow_origins"`
-	AllowMethods []string `mapstructure:"allow_methods"`
-	AllowHeaders []string `mapstructure:"allow_headers"`
+	AllowOrigins []string `mapstructure:"allow_origins" yaml:"allow_origins"`
+	AllowMethods []string `mapstructure:"allow_methods" yaml:"allow_methods"`
+	AllowHeaders []string `mapstructure:"allow_headers" yaml:"allow_headers"`
 }
 
 type RedisConfig struct {
-	Addr     string `mapstructure:"addr"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	DB       int    `mapstructure:"db"`
+	Addr     string `mapstructure:"addr" yaml:"addr"`
+	Username string `mapstructure:"username" yaml:"username"`
+	Password string `mapstructure:"password" yaml:"password"`
+	DB       int    `mapstructure:"db" yaml:"db"`
 }
 
-func New() (*Config, error) {
-	v := viper.New()
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
-	v.AddConfigPath("./config")
-
+func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 10431)
 	v.SetDefault("auth.enable", false)
+	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_header_name", "Authorization")
 	v.SetDefault("business.default_ttl", 600)
-	v.SetDefault("business.max_ttl", 600)
+	v.SetDefault("business.max_ttl", 2592000)
 	v.SetDefault("business.text_json_limit", 1<<20)
 	v.SetDefault("business.binary_push_limit", 20<<20)
 	v.SetDefault("ratelimit.enable", true)
@@ -88,8 +84,19 @@ func New() (*Config, error) {
 	})
 	v.SetDefault("storage.type", "memory")
 	v.SetDefault("redis.addr", "localhost:6379")
+	v.SetDefault("redis.username", "")
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
+}
+
+func New() (*Config, error) {
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./config")
+
+	setDefaults(v)
 
 	// Environment variable override: CS_SERVER_PORT, CS_REDIS_ADDR, etc.
 	v.SetEnvPrefix("CS")
@@ -107,4 +114,16 @@ func New() (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// DefaultConfig returns the default configuration serialized as YAML bytes.
+func DefaultConfig() ([]byte, error) {
+	v := viper.New()
+	setDefaults(v)
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, err
+	}
+	return yaml.Marshal(&cfg)
 }
