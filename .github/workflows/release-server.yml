@@ -35,6 +35,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: crossshare-server/go.mod
+          cache-dependency-path: crossshare-server/go.sum
 
       - name: Build
         working-directory: crossshare-server
