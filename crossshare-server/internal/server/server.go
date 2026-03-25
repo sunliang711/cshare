@@ -46,11 +46,11 @@ func New(p Params) *http.Server {
 
 	authMw := middleware.Auth(p.Config)
 
-	v2 := r.Group("/api/v1")
+	v1 := r.Group("/api/v1")
 	{
-		v2.GET("/health", p.HealthHandler.Health)
+		v1.GET("/health", p.HealthHandler.Health)
 
-		push := v2.Group("/push")
+		push := v1.Group("/push")
 		push.Use(authMw)
 		{
 			push.POST("/text", p.PushHandler.PushText)
@@ -58,7 +58,7 @@ func New(p Params) *http.Server {
 			push.POST("", p.PushHandler.PushUnified)
 		}
 
-		pull := v2.Group("/pull")
+		pull := v1.Group("/pull")
 		pull.Use(authMw)
 		{
 			pull.GET("/:key", p.PullHandler.Pull)
