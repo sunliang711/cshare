@@ -4,6 +4,9 @@ on:
   push:
     tags: ["server/v*"]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
   packages: write
@@ -70,9 +73,22 @@ jobs:
             checksums.txt
 
   docker:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Prepare binaries for Docker build
+        run: |
+          VERSION=${GITHUB_REF_NAME#server/}
+          mkdir -p crossshare-server/build
+          cp crossshare-server-${VERSION}-linux-amd64 crossshare-server/build/crossshare-server-linux-amd64
+          cp crossshare-server-${VERSION}-linux-arm64 crossshare-server/build/crossshare-server-linux-arm64
+          chmod +x crossshare-server/build/crossshare-server-*
 
       - uses: docker/setup-qemu-action@v3
 
@@ -93,10 +109,9 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: crossshare-server
+          file: crossshare-server/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
             ${{ steps.meta.outputs.image }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
