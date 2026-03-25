@@ -74,11 +74,11 @@ func New() (*Config, error) {
 	v.SetDefault("auth.enable", false)
 	v.SetDefault("auth.jwt_header_name", "Authorization")
 	v.SetDefault("business.default_ttl", 600)
-	v.SetDefault("business.max_ttl", 2592000)
+	v.SetDefault("business.max_ttl", 600)
 	v.SetDefault("business.text_json_limit", 1<<20)
 	v.SetDefault("business.binary_push_limit", 20<<20)
 	v.SetDefault("ratelimit.enable", true)
-	v.SetDefault("ratelimit.requests_per_minute", 60)
+	v.SetDefault("ratelimit.requests_per_minute", 20)
 	v.SetDefault("cors.allow_origins", []string{"*"})
 	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "DELETE", "OPTIONS"})
 	v.SetDefault("cors.allow_headers", []string{
@@ -86,7 +86,7 @@ func New() (*Config, error) {
 		"Filename", "X-Content-Type", "X-TTL",
 		"Accept", "Delete-After-Pull",
 	})
-	v.SetDefault("storage.type", "redis")
+	v.SetDefault("storage.type", "memory")
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
