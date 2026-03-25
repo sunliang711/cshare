@@ -1,14 +1,74 @@
-name: Release Server Docker Image
+name: Release Server
 
 on:
   push:
-    tags: ['server/v*']
+    tags: ["server/v*"]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: crossshare-server/go.mod
+
+      - name: Build
+        working-directory: crossshare-server
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#server/}
+          go build -ldflags="-s -w -X main.version=${VERSION}" \
+            -o ../crossshare-server-${VERSION}-${{ matrix.suffix }} ./cmd/server
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crossshare-server-${{ matrix.suffix }}
+          path: crossshare-server-*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: sha256sum crossshare-server-* > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Server ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            crossshare-server-*
+            checksums.txt
+
   docker:
     runs-on: ubuntu-latest
     steps:
