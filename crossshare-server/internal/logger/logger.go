@@ -2,6 +2,8 @@ package logger
 
 import (
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -13,6 +15,8 @@ var Module = fx.Options(
 )
 
 func New() zerolog.Logger {
+	zerolog.CallerMarshalFunc = shortCaller
+
 	output := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.RFC3339,
@@ -22,4 +26,12 @@ func New() zerolog.Logger {
 		Timestamp().
 		Caller().
 		Logger()
+}
+
+func shortCaller(_ uintptr, file string, line int) string {
+	parts := strings.Split(file, "/")
+	if len(parts) > 2 {
+		file = strings.Join(parts[len(parts)-2:], "/")
+	}
+	return file + ":" + strconv.Itoa(line)
 }
