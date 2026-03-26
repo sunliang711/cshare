@@ -23,6 +23,9 @@ func main() {
 		case "dump-config":
 			runDumpConfig(os.Args[2:])
 			return
+		case "install":
+			runInstall(os.Args[2:])
+			return
 		case "--version", "-v", "version":
 			fmt.Println(version)
 			return

@@ -106,6 +106,15 @@ CI 推送 `server/v*` 标签时自动构建多架构镜像（linux/amd64, linux/
 | GET | `/api/v1/pull/:key` | 拉取内容 |
 | DELETE | `/api/v1/pull/:key` | 删除内容 |
 
+### Systemd
+
+```bash
+sudo crossshare-server install                              # 基本安装
+sudo crossshare-server install --config /path/to/config.yaml  # 使用自定义配置
+sudo crossshare-server install --user crossshare --start      # 指定运行用户并立即启动
+sudo crossshare-server install --uninstall                    # 卸载
+```
+
 ---
 
 ## crossshare-cli
