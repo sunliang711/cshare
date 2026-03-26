@@ -19,6 +19,7 @@
 			defaultPlaceholder: "默认",
 			seconds: "秒",
 			copy: "复制",
+			copyLink: "复制链接",
 			enterKey: "输入 Key",
 			deleteAfterPull: "拉取后删除",
 			textContent: "文本内容",
@@ -43,6 +44,7 @@
 			deleteOk: "删除成功",
 			deleted: "已删除",
 			keyCopied: "Key 已复制",
+			linkCopied: "链接已复制",
 			contentCopied: "内容已复制",
 			reqFail: "请求失败",
 			metaType: "类型",
@@ -63,6 +65,7 @@
 			defaultPlaceholder: "Default",
 			seconds: "sec",
 			copy: "Copy",
+			copyLink: "Copy Link",
 			enterKey: "Enter Key",
 			deleteAfterPull: "Delete after pull",
 			textContent: "Text Content",
@@ -87,6 +90,7 @@
 			deleteOk: "Deleted successfully",
 			deleted: "Deleted",
 			keyCopied: "Key copied",
+			linkCopied: "Link copied",
 			contentCopied: "Content copied",
 			reqFail: "Request failed",
 			metaType: "Type",
@@ -190,6 +194,29 @@
 
 	// Apply saved language
 	applyI18n();
+	// ── Auto-pull from URL ?key= ──────────────────────────────
+
+	(function autoPullFromURL() {
+		const params = new URLSearchParams(window.location.search);
+		const key = params.get("key");
+		if (!key) return;
+
+		// Clean URL without reloading
+		const cleanUrl = window.location.pathname + window.location.hash;
+		window.history.replaceState(null, "", cleanUrl);
+
+		// Switch to Pull tab
+		$$(".tab").forEach((t) => t.classList.remove("active"));
+		$$(".tab-content").forEach((c) => c.classList.remove("active"));
+		$('.tab[data-tab="pull"]').classList.add("active");
+		$("#pullTab").classList.add("active");
+
+		// Fill key and trigger pull
+		$("#pullKey").value = key;
+		// Defer click so all init is done
+		setTimeout(() => $("#pullBtn").click(), 0);
+	})();
+
 	const langBtn = $("#langToggle");
 	langBtn.textContent = currentLang === "zh" ? "EN" : "中";
 	langBtn.title = currentLang === "zh" ? "Switch to English" : "切换到中文";
@@ -370,6 +397,16 @@
 	$("#copyKey").addEventListener("click", () => {
 		copyText($("#resultKey").textContent);
 		toast(t("keyCopied"), "success");
+	});
+
+	$("#copyLink").addEventListener("click", () => {
+		const key = $("#resultKey").textContent;
+		const url = new URL(window.location.href);
+		url.search = "";
+		url.hash = "";
+		url.searchParams.set("key", key);
+		copyText(url.toString());
+		toast(t("linkCopied"), "success");
 	});
 
 	// ── Pull ──────────────────────────────────────────────────
