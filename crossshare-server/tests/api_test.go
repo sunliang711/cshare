@@ -152,7 +152,7 @@ func parseResponse(t *testing.T, w *httptest.ResponseRecorder) apiResponse {
 
 func pushTextHelper(t *testing.T, r *gin.Engine, text string) string {
 	t.Helper()
-	body, _ := json.Marshal(map[string]interface{}{"text": text, "ttl": 300})
+	body, _ := json.Marshal(map[string]any{"text": text, "ttl": 300})
 	w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 		map[string]string{"Content-Type": "application/json"})
 	require.Equal(t, http.StatusOK, w.Code)
@@ -221,7 +221,7 @@ func TestPushText(t *testing.T) {
 	r := setupRouter(t)
 
 	t.Run("success", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{
+		body, _ := json.Marshal(map[string]any{
 			"text": "hello world",
 			"ttl":  3600,
 		})
@@ -243,7 +243,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("default ttl", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "no ttl"})
+		body, _ := json.Marshal(map[string]any{"text": "no ttl"})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -255,7 +255,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("with filename and content_type", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{
+		body, _ := json.Marshal(map[string]any{
 			"text":         "markdown content",
 			"ttl":          300,
 			"filename":     "readme.md",
@@ -267,7 +267,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("empty text rejected", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": ""})
+		body, _ := json.Marshal(map[string]any{"text": ""})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -277,7 +277,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("whitespace only text rejected", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "   "})
+		body, _ := json.Marshal(map[string]any{"text": "   "})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -296,7 +296,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("ttl below minimum", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "hello", "ttl": 10})
+		body, _ := json.Marshal(map[string]any{"text": "hello", "ttl": 10})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -306,7 +306,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("ttl above maximum", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "hello", "ttl": 9999999})
+		body, _ := json.Marshal(map[string]any{"text": "hello", "ttl": 9999999})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -322,7 +322,7 @@ func TestPushText_PayloadTooLarge(t *testing.T) {
 	})
 
 	largeText := strings.Repeat("x", 200)
-	body, _ := json.Marshal(map[string]interface{}{"text": largeText})
+	body, _ := json.Marshal(map[string]any{"text": largeText})
 	w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 		map[string]string{"Content-Type": "application/json"})
 
@@ -406,7 +406,7 @@ func TestPushUnified(t *testing.T) {
 	r := setupRouter(t)
 
 	t.Run("json dispatches to text", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "unified text", "ttl": 300})
+		body, _ := json.Marshal(map[string]any{"text": "unified text", "ttl": 300})
 		w := doRequest(r, "POST", "/api/v1/push", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -418,7 +418,7 @@ func TestPushUnified(t *testing.T) {
 	})
 
 	t.Run("json with charset", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "charset", "ttl": 300})
+		body, _ := json.Marshal(map[string]any{"text": "charset", "ttl": 300})
 		w := doRequest(r, "POST", "/api/v1/push", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json; charset=utf-8"})
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -633,7 +633,7 @@ func TestAuth(t *testing.T) {
 	})
 
 	t.Run("reject push without token", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "hello"})
+		body, _ := json.Marshal(map[string]any{"text": "hello"})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -648,7 +648,7 @@ func TestAuth(t *testing.T) {
 	})
 
 	t.Run("reject invalid token", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "hello"})
+		body, _ := json.Marshal(map[string]any{"text": "hello"})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{
 				"Content-Type":  "application/json",
@@ -661,7 +661,7 @@ func TestAuth(t *testing.T) {
 	})
 
 	t.Run("reject wrong auth scheme", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{"text": "hello"})
+		body, _ := json.Marshal(map[string]any{"text": "hello"})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{
 				"Content-Type":  "application/json",
@@ -675,7 +675,7 @@ func TestAuth(t *testing.T) {
 
 	t.Run("accept valid token", func(t *testing.T) {
 		token := createJWTToken(secret, "testuser")
-		body, _ := json.Marshal(map[string]interface{}{"text": "authenticated", "ttl": 300})
+		body, _ := json.Marshal(map[string]any{"text": "authenticated", "ttl": 300})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{
 				"Content-Type":  "application/json",
@@ -695,7 +695,7 @@ func TestAuth(t *testing.T) {
 		}
 
 		// Push
-		body, _ := json.Marshal(map[string]interface{}{"text": "auth flow", "ttl": 300})
+		body, _ := json.Marshal(map[string]any{"text": "auth flow", "ttl": 300})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body), authHeader)
 		require.Equal(t, http.StatusOK, w.Code)
 		resp := parseResponse(t, w)

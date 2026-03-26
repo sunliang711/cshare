@@ -9,7 +9,7 @@ import (
 	"crossshare-server/internal/model"
 )
 
-func respondJSON(c *gin.Context, httpStatus int, code int, msg string, data interface{}) {
+func respondJSON(c *gin.Context, httpStatus int, code int, msg string, data any) {
 	c.JSON(httpStatus, model.Response{
 		Code:      code,
 		Msg:       msg,
@@ -18,7 +18,7 @@ func respondJSON(c *gin.Context, httpStatus int, code int, msg string, data inte
 	})
 }
 
-func respondSuccess(c *gin.Context, msg string, data interface{}) {
+func respondSuccess(c *gin.Context, msg string, data any) {
 	respondJSON(c, http.StatusOK, 0, msg, data)
 }
 

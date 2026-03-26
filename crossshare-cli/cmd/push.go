@@ -67,7 +67,7 @@ func runPush(cmd *cobra.Command, args []string) {
 func pushTextContent(text string) {
 	c := newClient()
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"text": text,
 	}
 	if pushTTL > 0 {

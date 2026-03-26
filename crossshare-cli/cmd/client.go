@@ -53,7 +53,7 @@ func (c *Client) setAuth(req *http.Request) {
 	}
 }
 
-func (c *Client) doJSON(method, path string, body interface{}, headers map[string]string) (*APIResponse, error) {
+func (c *Client) doJSON(method, path string, body any, headers map[string]string) (*APIResponse, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)

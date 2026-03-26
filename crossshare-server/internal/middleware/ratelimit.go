@@ -46,7 +46,7 @@ func (rl *RateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
-		rl.limiters.Range(func(key, _ interface{}) bool {
+		rl.limiters.Range(func(key, _ any) bool {
 			rl.limiters.Delete(key)
 			return true
 		})

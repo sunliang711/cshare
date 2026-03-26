@@ -35,7 +35,7 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}

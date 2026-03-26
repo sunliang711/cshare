@@ -1,10 +1,10 @@
 package model
 
 type Response struct {
-	Code      int         `json:"code"`
-	Msg       string      `json:"msg"`
-	Data      interface{} `json:"data"`
-	RequestID string      `json:"request_id"`
+	Code      int    `json:"code"`
+	Msg       string `json:"msg"`
+	Data      any    `json:"data"`
+	RequestID string `json:"request_id"`
 }
 
 type PushResult struct {
