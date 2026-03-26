@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -70,7 +71,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_header_name", "Authorization")
 	v.SetDefault("business.default_ttl", 600)
-	v.SetDefault("business.max_ttl", 2592000)
+	v.SetDefault("business.max_ttl", 86400) // 24 hours
 	v.SetDefault("business.text_json_limit", 1<<20)
 	v.SetDefault("business.binary_push_limit", 20<<20)
 	v.SetDefault("ratelimit.enable", true)
@@ -95,6 +96,7 @@ func New() (*Config, error) {
 	v.SetConfigType("yaml")
 	v.AddConfigPath(".")
 	v.AddConfigPath("./config")
+	v.AddConfigPath("/etc/crossshare")
 
 	setDefaults(v)
 
@@ -107,6 +109,9 @@ func New() (*Config, error) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, err
 		}
+		fmt.Println("[config] no config file found, using defaults and environment variables")
+	} else {
+		fmt.Printf("[config] using config file: %s\n", v.ConfigFileUsed())
 	}
 
 	var cfg Config
