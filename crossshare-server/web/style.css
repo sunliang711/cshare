@@ -655,6 +655,36 @@ textarea {
 	display: none !important;
 }
 
+/* ── Countdown ──────────────────────────────────────── */
+
+.countdown {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--primary-hover);
+	margin-bottom: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	background: rgba(99, 102, 241, 0.08);
+	border-radius: 6px;
+	text-align: center;
+	letter-spacing: 0.02em;
+	transition: all 0.3s ease;
+	font-variant-numeric: tabular-nums;
+}
+
+[data-theme="light"] .countdown {
+	background: rgba(88, 86, 214, 0.08);
+}
+
+.countdown-warning {
+	color: #f59e0b;
+	background: rgba(245, 158, 11, 0.1);
+}
+
+.countdown-expired {
+	color: var(--danger);
+	background: rgba(239, 68, 68, 0.1);
+}
+
 /* ── Scrollbar ──────────────────────────────────────── */
 
 ::-webkit-scrollbar {

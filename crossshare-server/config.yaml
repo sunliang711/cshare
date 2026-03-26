@@ -11,7 +11,7 @@ auth:
 
 business:
   default_ttl: 600
-  max_ttl: 2592000
+  max_ttl: 86400 # 24 hours
   text_json_limit: 1048576 # 1MB
   binary_push_limit: 20971520 # 20MB
 

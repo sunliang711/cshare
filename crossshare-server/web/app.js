@@ -28,6 +28,8 @@
 			settings: "设置",
 			toggleTheme: "切换主题",
 			// dynamic strings
+			expired: "已过期",
+			expiresIn: "过期倒计时",
 			settingsSaved: "设置已保存",
 			checking: "检查中…",
 			noConnect: "✗ 无法连接",
@@ -74,6 +76,8 @@
 			settings: "Settings",
 			toggleTheme: "Toggle Theme",
 			// dynamic strings
+			expired: "Expired",
+			expiresIn: "Expires in",
 			settingsSaved: "Settings saved",
 			checking: "Checking…",
 			noConnect: "✗ Cannot connect",
@@ -385,6 +389,9 @@
 			$("#resultMeta").textContent = meta;
 			$("#pushResult").classList.remove("hidden");
 
+			// Start countdown timer
+			startCountdown(r.expire_at || Math.floor(Date.now() / 1000) + r.ttl);
+
 			toast(t("pushOk"), "success");
 		} catch (e) {
 			toast(t("reqFail") + ": " + e.message, "error");
@@ -596,6 +603,45 @@
 		const h = Math.floor(sec / 3600);
 		const m = Math.floor((sec % 3600) / 60);
 		return m ? h + "h" + m + "m" : h + "h";
+	}
+
+	// ── Countdown Timer ──────────────────────────────────────
+
+	let countdownTimer = null;
+
+	function startCountdown(expireAt) {
+		if (countdownTimer) clearInterval(countdownTimer);
+
+		let el = $("#countdownDisplay");
+		if (!el) {
+			el = document.createElement("div");
+			el.id = "countdownDisplay";
+			el.className = "countdown";
+			const resultMeta = $("#resultMeta");
+			resultMeta.parentNode.insertBefore(el, resultMeta);
+		}
+
+		function update() {
+			const remaining = expireAt - Math.floor(Date.now() / 1000);
+			if (remaining <= 0) {
+				el.textContent = t("expired");
+				el.classList.add("countdown-expired");
+				el.classList.remove("countdown-warning");
+				clearInterval(countdownTimer);
+				countdownTimer = null;
+				return;
+			}
+			el.classList.remove("countdown-expired");
+			if (remaining <= 60) {
+				el.classList.add("countdown-warning");
+			} else {
+				el.classList.remove("countdown-warning");
+			}
+			el.textContent = `${t("expiresIn")}: ${humanDuration(remaining)}`;
+		}
+
+		update();
+		countdownTimer = setInterval(update, 1000);
 	}
 
 	let toastTimer;
