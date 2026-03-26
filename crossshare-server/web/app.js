@@ -580,4 +580,15 @@
 			}
 		}
 	});
+
+	// ── Select all on first focus ─────────────────────────────
+	document
+		.querySelectorAll(
+			'input[type="text"], input[type="number"], input[type="password"], textarea',
+		)
+		.forEach((el) => {
+			el.addEventListener("focus", () => {
+				requestAnimationFrame(() => el.select());
+			});
+		});
 })();
