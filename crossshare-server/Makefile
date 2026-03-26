@@ -2,9 +2,10 @@
 
 APP_NAME := crossshare-server
 BUILD_DIR := ./build
+VERSION ?= dev
 
 build:
-	go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/server
+	go build -ldflags="-s -w -X main.version=$(VERSION)" -o $(BUILD_DIR)/$(APP_NAME) ./cmd/server
 
 run: build
 	$(BUILD_DIR)/$(APP_NAME)

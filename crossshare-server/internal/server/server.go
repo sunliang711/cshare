@@ -16,6 +16,8 @@ import (
 	"crossshare-server/web"
 )
 
+type Version string
+
 var Module = fx.Options(
 	fx.Provide(middleware.NewRateLimiter),
 	fx.Provide(New),
@@ -26,6 +28,7 @@ type Params struct {
 	fx.In
 
 	Lifecycle     fx.Lifecycle
+	Version       Version
 	Config        *config.Config
 	Logger        zerolog.Logger
 	HealthHandler *handler.HealthHandler
@@ -79,7 +82,7 @@ func New(p Params) *http.Server {
 
 	p.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			p.Logger.Info().Str("addr", addr).Msg("starting HTTP server")
+			p.Logger.Info().Str("version", string(p.Version)).Str("addr", addr).Msg("starting HTTP server")
 			go func() {
 				var err error
 				if p.Config.Server.TLSEnable {

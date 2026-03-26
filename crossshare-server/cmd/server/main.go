@@ -15,16 +15,22 @@ import (
 	"crossshare-server/internal/storage"
 )
 
+var version = "dev"
+
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "dump-config":
 			runDumpConfig(os.Args[2:])
 			return
+		case "--version", "-v", "version":
+			fmt.Println(version)
+			return
 		}
 	}
 
 	fx.New(
+		fx.Supply(server.Version(version)),
 		config.Module,
 		logger.Module,
 		storage.Module,
