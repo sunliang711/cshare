@@ -828,7 +828,7 @@
 
 	async function fallbackP2PToServer() {
 		const state = p2pState;
-		if (!state || state.role !== "sender" || !state.input || state.transferStarted || state.transferDone || state.fallbackStarted) return;
+		if (!state || state.role !== "sender" || !state.input || state.connected || state.transferStarted || state.transferDone || state.fallbackStarted) return;
 		state.fallbackStarted = true;
 		stopP2PTransport(state);
 		state.stopped = true;
