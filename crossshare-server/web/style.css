@@ -496,6 +496,10 @@ textarea {
 	min-width: 0;
 }
 
+.pull-input .btn {
+	flex-shrink: 0;
+}
+
 .inline input[type="number"] {
 	width: 120px;
 	max-width: 40vw;

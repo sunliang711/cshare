@@ -18,8 +18,8 @@
 			dropHint: "点击选择文件或拖拽到此处",
 			defaultPlaceholder: "默认",
 			seconds: "秒",
-			smartTransfer: "智能传输",
-			serverTransfer: "存到服务器",
+			smartTransfer: "直连优先",
+			serverTransfer: "服务器暂存",
 			copy: "复制",
 			copyLink: "复制链接",
 			showQr: "查看二维码",
@@ -31,6 +31,7 @@
 			deleteAfterPull: "拉取后删除",
 			textContent: "文本内容",
 			download: "下载",
+			clear: "清除",
 			delete: "删除",
 			settings: "设置",
 			toggleTheme: "切换主题",
@@ -93,8 +94,8 @@
 			dropHint: "Click to select file or drag & drop here",
 			defaultPlaceholder: "Default",
 			seconds: "sec",
-			smartTransfer: "Smart",
-			serverTransfer: "Server",
+			smartTransfer: "Direct First",
+			serverTransfer: "Server Storage",
 			copy: "Copy",
 			copyLink: "Copy Link",
 			showQr: "QR Code",
@@ -106,6 +107,7 @@
 			deleteAfterPull: "Delete after pull",
 			textContent: "Text Content",
 			download: "Download",
+			clear: "Clear",
 			delete: "Delete",
 			settings: "Settings",
 			toggleTheme: "Toggle Theme",
@@ -438,6 +440,7 @@
 		try {
 			const input = getPushInput(isText);
 			if (!input) return;
+			clearPushResult();
 
 			if (transferMode === "smart") {
 				if (!supportsP2P()) {
@@ -487,6 +490,15 @@
 			filename: selectedFile.name,
 			contentType: selectedFile.type || "application/octet-stream",
 		};
+	}
+
+	function clearPushResult() {
+		stopCountdown();
+		currentResult = { mode: "", key: "", url: "" };
+		$("#resultKey").textContent = "";
+		$("#resultMeta").textContent = "";
+		$("#pushResult").classList.add("hidden");
+		setPushResultActions("");
 	}
 
 	async function pushToServer(input) {
@@ -1309,6 +1321,25 @@
 		}
 	});
 
+	$("#clearPull").addEventListener("click", () => {
+		if (p2pState && p2pState.role === "receiver") {
+			const state = p2pState;
+			state.stopped = true;
+			stopP2PTransport(state);
+			p2pState = null;
+		}
+
+		$("#pullKey").value = "";
+		$("#pullTextContent").textContent = "";
+		$("#pullTextResult").classList.add("hidden");
+		$("#pullFileName").textContent = "";
+		$("#pullFileLink").removeAttribute("href");
+		$("#pullFileLink").removeAttribute("download");
+		$("#pullFileResult").classList.add("hidden");
+		$("#pullMeta").textContent = "";
+		$("#pullResult").classList.add("hidden");
+	});
+
 	$("#copyText").addEventListener("click", () => {
 		copyText($("#pullTextContent").textContent);
 		toast(t("contentCopied"), "success");
@@ -1409,8 +1440,15 @@
 
 	let countdownTimer = null;
 
-	function startCountdown(expireAt) {
+	function stopCountdown() {
 		if (countdownTimer) clearInterval(countdownTimer);
+		countdownTimer = null;
+		const el = $("#countdownDisplay");
+		if (el) el.remove();
+	}
+
+	function startCountdown(expireAt) {
+		stopCountdown();
 
 		let el = $("#countdownDisplay");
 		if (!el) {
