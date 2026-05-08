@@ -29,6 +29,8 @@
 			cancel: "取消",
 			saveToServer: "存到服务器",
 			cleanup: "清理",
+			moreActions: "更多操作",
+			moreSettings: "更多设置",
 			enterKey: "输入 Key",
 			deleteAfterPull: "拉取后删除",
 			textContent: "文本内容",
@@ -107,6 +109,8 @@
 			cancel: "Cancel",
 			saveToServer: "Save to Server",
 			cleanup: "Clean",
+			moreActions: "More actions",
+			moreSettings: "More settings",
 			enterKey: "Enter Key",
 			deleteAfterPull: "Delete after pull",
 			textContent: "Text Content",
@@ -1278,6 +1282,8 @@
 			toast(t("enterKeyWarn"), "error");
 			return;
 		}
+		const pullMore = $(".pull-more");
+		if (pullMore) pullMore.open = false;
 
 		const btn = $("#pullBtn");
 		btn.disabled = true;

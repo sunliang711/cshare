@@ -142,20 +142,6 @@
 					<div id="fileInfo" class="file-info hidden"></div>
 
 					<div class="action-dock">
-						<div class="options-row">
-							<label class="inline">
-								<span>TTL</span>
-								<input
-									type="number"
-									id="pushTtl"
-									data-i18n-placeholder="defaultPlaceholder"
-									placeholder="默认"
-									min="1"
-								/>
-								<span class="unit" data-i18n="seconds">秒</span>
-							</label>
-						</div>
-
 						<div class="transfer-switch">
 							<button
 								class="transfer active"
@@ -180,6 +166,23 @@
 						>
 							推送
 						</button>
+
+						<details class="push-more">
+							<summary data-i18n="moreSettings">更多设置</summary>
+							<div class="options-row">
+								<label class="inline">
+									<span>TTL</span>
+									<input
+										type="number"
+										id="pushTtl"
+										data-i18n-placeholder="defaultPlaceholder"
+										placeholder="默认"
+										min="1"
+									/>
+									<span class="unit" data-i18n="seconds">秒</span>
+								</label>
+							</div>
+						</details>
 					</div>
 
 					<div id="pushResult" class="result hidden">
@@ -254,6 +257,10 @@
 								拉取
 							</button>
 						</div>
+					</div>
+
+					<details class="pull-more">
+						<summary data-i18n="moreActions">更多操作</summary>
 						<div class="pull-actions">
 							<label class="checkbox">
 								<input type="checkbox" id="deleteAfterPull" />
@@ -267,7 +274,28 @@
 								清除
 							</button>
 						</div>
-					</div>
+
+						<div class="delete-section">
+							<div class="pull-input">
+								<input
+									type="text"
+									id="deleteKey"
+									data-i18n-placeholder="enterKey"
+									placeholder="输入 Key"
+								/>
+								<button
+									class="btn btn-danger"
+									id="deleteBtn"
+									data-i18n="delete"
+								>
+									删除
+								</button>
+							</div>
+							<div id="deleteResult" class="result hidden">
+								<div class="result-meta" id="deleteMeta"></div>
+							</div>
+						</div>
+					</details>
 
 					<div id="pullResult" class="result hidden">
 						<div id="pullTextResult" class="hidden">
@@ -297,27 +325,6 @@
 							</div>
 						</div>
 						<div class="result-meta" id="pullMeta"></div>
-					</div>
-
-					<div class="delete-section">
-						<div class="pull-input">
-							<input
-								type="text"
-								id="deleteKey"
-								data-i18n-placeholder="enterKey"
-								placeholder="输入 Key"
-							/>
-							<button
-								class="btn btn-danger"
-								id="deleteBtn"
-								data-i18n="delete"
-							>
-								删除
-							</button>
-						</div>
-						<div id="deleteResult" class="result hidden">
-							<div class="result-meta" id="deleteMeta"></div>
-						</div>
 					</div>
 				</section>
 
