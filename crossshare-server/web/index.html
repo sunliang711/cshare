@@ -25,6 +25,22 @@
 					</div>
 				</a>
 				<div class="header-actions">
+					<div class="interaction-switch" role="group" aria-label="交互模式">
+						<button
+							class="interaction active"
+							data-interaction-mode="modern"
+							data-i18n="newInteraction"
+						>
+							新版
+						</button>
+						<button
+							class="interaction"
+							data-interaction-mode="classic"
+							data-i18n="classicInteraction"
+						>
+							经典
+						</button>
+					</div>
 					<button
 						class="icon-btn"
 						id="langToggle"
@@ -115,19 +131,51 @@
 
 					<div class="share-orb">
 						<div id="textMode" class="orb-content">
-							<label class="orb-label" for="pushText" data-i18n="textContent">
-								文本内容
-							</label>
-							<textarea
-								id="pushText"
-								data-i18n-placeholder="pushPlaceholder"
-								placeholder="输入要分享的文本内容…"
-								rows="5"
-							></textarea>
+							<button
+								type="button"
+								id="paperPrompt"
+								class="paper-fold"
+								aria-controls="pushText"
+							>
+								<span class="folded-paper" aria-hidden="true">
+									<span class="paper-sheet"></span>
+									<span class="paper-preview"></span>
+									<span class="paper-count"></span>
+									<img class="quill-pen" src="/pen.webp" alt="" />
+								</span>
+								<span class="paper-fold-text" data-i18n="paperFolded">
+									写点什么
+								</span>
+							</button>
+							<div class="paper-editor">
+								<label class="orb-label" for="pushText" data-i18n="textContent">
+									文本内容
+								</label>
+								<button
+									type="button"
+									id="paperCollapse"
+									class="paper-collapse"
+									data-i18n-title="collapsePaper"
+									data-i18n-aria-label="collapsePaper"
+									title="收起信纸"
+									aria-label="收起信纸"
+								></button>
+								<textarea
+									id="pushText"
+									data-i18n-placeholder="pushPlaceholder"
+									placeholder="输入要分享的文本内容…"
+									rows="5"
+								></textarea>
+							</div>
 						</div>
 
 						<div id="fileMode" class="orb-content hidden">
 							<div class="drop-zone" id="dropZone">
+								<span class="package-visual" aria-hidden="true">
+									<span class="package-lid"></span>
+									<span class="package-box"></span>
+									<span class="package-file"></span>
+								</span>
 								<span class="drop-icon" aria-hidden="true">
 									<svg
 										class="drop-icon-upload"
@@ -181,13 +229,36 @@
 							</button>
 						</div>
 
-						<button
-							class="btn btn-primary btn-block"
-							id="pushBtn"
-							data-i18n="push"
-						>
-							推送
-						</button>
+						<div class="send-row">
+							<button
+								class="btn btn-primary btn-block"
+								id="pushBtn"
+								data-i18n="push"
+								data-i18n-title="push"
+								title="推送"
+							>
+								推送
+							</button>
+							<label
+								class="direct-toggle"
+								data-i18n-title="directTransferHint"
+								title="关闭后使用服务器暂存"
+							>
+								<input
+									type="checkbox"
+									id="directTransferToggle"
+									checked
+									data-i18n-aria-label="smartTransfer"
+									aria-label="直连优先"
+								/>
+								<span class="toggle-track" aria-hidden="true">
+									<span class="toggle-thumb"></span>
+								</span>
+								<span class="direct-toggle-text" data-i18n="smartTransfer">
+									直连优先
+								</span>
+							</label>
+						</div>
 
 						<details class="push-more">
 							<summary data-i18n="moreSettings">更多设置</summary>
@@ -261,23 +332,34 @@
 
 				<section id="pullTab" class="tab-content">
 					<div class="pull-orb">
-						<label class="orb-label" for="pullKey" data-i18n="enterKey">
-							输入 Key
-						</label>
-						<div class="pull-input">
-							<input
-								type="text"
-								id="pullKey"
-								data-i18n-placeholder="enterKey"
-								placeholder="输入 Key"
-							/>
-							<button
-								class="btn btn-primary"
-								id="pullBtn"
-								data-i18n="pull"
-							>
-								拉取
-							</button>
+						<div class="safe-visual" aria-hidden="true">
+							<span class="safe-content"></span>
+							<span class="safe-door">
+								<span class="safe-dial"></span>
+								<span class="safe-handle"></span>
+							</span>
+						</div>
+						<div class="pull-control">
+							<label class="orb-label" for="pullKey" data-i18n="enterKey">
+								输入 Key
+							</label>
+							<div class="pull-input">
+								<input
+									type="text"
+									id="pullKey"
+									data-i18n-placeholder="enterKey"
+									placeholder="输入 Key"
+								/>
+								<button
+									class="btn btn-primary"
+									id="pullBtn"
+									data-i18n="pull"
+									data-i18n-title="pull"
+									title="拉取"
+								>
+									拉取
+								</button>
+							</div>
 						</div>
 					</div>
 
@@ -350,10 +432,6 @@
 					</div>
 				</section>
 
-				<footer class="app-footer">
-					<img src="/favicon.svg" alt="" />
-					<p data-i18n="subtitle">跨设备内容分享</p>
-				</footer>
 			</main>
 
 			<div id="toast" class="toast hidden"></div>

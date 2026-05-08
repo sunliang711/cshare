@@ -85,6 +85,7 @@ func New(p Params) *http.Server {
 	r.GET("/app.js", gin.WrapH(http.FileServer(http.FS(staticFS))))
 	r.GET("/qrcode-lite.js", gin.WrapH(http.FileServer(http.FS(staticFS))))
 	r.GET("/favicon.svg", gin.WrapH(http.FileServer(http.FS(staticFS))))
+	r.GET("/pen.webp", gin.WrapH(http.FileServer(http.FS(staticFS))))
 
 	addr := fmt.Sprintf(":%d", p.Config.Server.Port)
 	srv := &http.Server{

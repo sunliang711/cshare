@@ -2,5 +2,5 @@ package web
 
 import "embed"
 
-//go:embed index.html style.css app.js qrcode-lite.js favicon.svg
+//go:embed index.html style.css app.js qrcode-lite.js favicon.svg pen.webp
 var StaticFiles embed.FS

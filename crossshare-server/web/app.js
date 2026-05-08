@@ -12,9 +12,13 @@
 			checkConn: "检查连接",
 			push: "推送",
 			pull: "拉取",
+			newInteraction: "新版",
+			classicInteraction: "经典",
 			text: "文本",
 			file: "文件",
 			pushPlaceholder: "输入要分享的文本内容…",
+			paperFolded: "写点什么",
+			collapsePaper: "收起信纸",
 			dropHint: "选择文件",
 			dropSubHint: "或拖拽到此处",
 			dropReady: "文件已选择",
@@ -23,6 +27,7 @@
 			seconds: "秒",
 			smartTransfer: "直连优先",
 			serverTransfer: "服务器暂存",
+			directTransferHint: "关闭后使用服务器暂存",
 			copy: "复制",
 			copyLink: "复制链接",
 			showQr: "查看二维码",
@@ -94,9 +99,13 @@
 			checkConn: "Test Connection",
 			push: "Push",
 			pull: "Pull",
+			newInteraction: "New",
+			classicInteraction: "Classic",
 			text: "Text",
 			file: "File",
 			pushPlaceholder: "Enter text to share…",
+			paperFolded: "Write something",
+			collapsePaper: "Collapse letter",
 			dropHint: "Select file",
 			dropSubHint: "or drag it here",
 			dropReady: "File ready",
@@ -105,6 +114,7 @@
 			seconds: "sec",
 			smartTransfer: "Direct First",
 			serverTransfer: "Server Storage",
+			directTransferHint: "Turn off to store on server",
 			copy: "Copy",
 			copyLink: "Copy Link",
 			showQr: "QR Code",
@@ -196,8 +206,15 @@
 				el.title = i18n[currentLang][key];
 			}
 		});
+		$$("[data-i18n-aria-label]").forEach((el) => {
+			const key = el.getAttribute("data-i18n-aria-label");
+			if (i18n[currentLang][key] !== undefined) {
+				el.setAttribute("aria-label", i18n[currentLang][key]);
+			}
+		});
 		// Update html lang attribute
 		document.documentElement.lang = currentLang === "zh" ? "zh-CN" : "en";
+		updatePaperFoldLabel();
 	}
 
 	function toggleLang() {
@@ -276,8 +293,10 @@
 	}
 
 	let currentResult = { mode: "", key: "", url: "" };
-	let transferMode = "smart";
+	let transferMode = localStorage.getItem("cs_transfer") || "smart";
 	let p2pState = null;
+	let interactionMode = localStorage.getItem("cs_interaction") || "modern";
+	let paperOpen = false;
 
 	const p2pIceServers = [
 		{ urls: "stun:stun.l.google.com:19302" },
@@ -404,16 +423,31 @@
 			$("#textMode").classList.toggle("hidden", !isText);
 			$("#fileMode").classList.toggle("hidden", isText);
 			$("#fileInfo").classList.toggle("hidden", isText || !selectedFile);
+			syncModernPushState();
 		});
 	});
 
-	$$(".transfer").forEach((btn) => {
-		btn.addEventListener("click", () => {
-			$$(".transfer").forEach((b) => b.classList.remove("active"));
-			btn.classList.add("active");
-			transferMode = btn.dataset.transfer;
+	function setTransferMode(mode) {
+		transferMode = mode === "server" ? "server" : "smart";
+		localStorage.setItem("cs_transfer", transferMode);
+		$$(".transfer").forEach((btn) => {
+			btn.classList.toggle("active", btn.dataset.transfer === transferMode);
 		});
+		const toggle = $("#directTransferToggle");
+		if (toggle) {
+			toggle.checked = transferMode === "smart";
+		}
+	}
+
+	$$(".transfer").forEach((btn) => {
+		btn.addEventListener("click", () => setTransferMode(btn.dataset.transfer));
 	});
+
+	$("#directTransferToggle").addEventListener("change", (e) => {
+		setTransferMode(e.target.checked ? "smart" : "server");
+	});
+
+	setTransferMode(transferMode);
 
 	// ── Push: file handling ───────────────────────────────────
 
@@ -462,19 +496,153 @@
 		const info = $("#fileInfo");
 		info.classList.remove("hidden");
 		info.innerHTML = `<span>${file.name}</span><span>${humanSize(file.size)}</span>`;
+		syncModernPushState();
 	}
+
+	// ── Interaction mode ──────────────────────────────────────
+
+	function applyInteractionMode(mode) {
+		interactionMode = mode === "classic" ? "classic" : "modern";
+		document.documentElement.setAttribute("data-interaction", interactionMode);
+		localStorage.setItem("cs_interaction", interactionMode);
+		$$(".interaction").forEach((btn) => {
+			btn.classList.toggle(
+				"active",
+				btn.dataset.interactionMode === interactionMode,
+			);
+		});
+		syncModernPushState();
+	}
+
+	function syncModernPushState() {
+		const isText = $(".mode.active")?.dataset.mode === "text";
+		if (interactionMode === "modern" && isText) {
+			setPaperOpen(!!$("#pushText").value.trim(), false);
+		}
+		updatePaperFoldLabel();
+		updateModernReadyState();
+	}
+
+	function setPaperOpen(open, focusText) {
+		const textMode = $("#textMode");
+		const wasOpen = paperOpen;
+		paperOpen = !!open;
+		textMode.classList.remove("paper-folding");
+		textMode.classList.toggle("paper-open", paperOpen);
+		if (wasOpen && !paperOpen) {
+			void textMode.offsetWidth;
+			textMode.classList.add("paper-folding");
+			setTimeout(() => textMode.classList.remove("paper-folding"), 420);
+		}
+		updatePaperFoldLabel();
+		if (paperOpen && focusText) {
+			requestAnimationFrame(() => $("#pushText").focus());
+		}
+	}
+
+	function updatePaperFoldLabel() {
+		const label = $(".paper-fold-text");
+		if (!label) return;
+
+		const text = $("#pushText")?.value.trim() || "";
+		const preview = $(".paper-preview");
+		const countBadge = $(".paper-count");
+		$("#paperPrompt").classList.toggle("has-paper-text", !!text);
+		if (!text) {
+			label.textContent = t("paperFolded");
+			if (preview) preview.textContent = "";
+			if (countBadge) countBadge.textContent = "";
+			return;
+		}
+
+		const count = Array.from(text).length;
+		label.textContent = "";
+		if (countBadge) countBadge.textContent = String(count);
+		if (preview) {
+			const summary = text.replace(/\s+/g, " ");
+			preview.textContent =
+				Array.from(summary).slice(0, 42).join("") +
+				(count > 42 ? "..." : "");
+		}
+	}
+
+	function updateModernReadyState() {
+		const btn = $("#pushBtn");
+		if (!btn || btn.dataset.busy === "true") return;
+		if (interactionMode !== "modern") {
+			btn.disabled = false;
+			btn.classList.remove("modern-ready");
+			return;
+		}
+
+		const isText = $(".mode.active")?.dataset.mode === "text";
+		const ready = isText ? !!$("#pushText").value.trim() : !!selectedFile;
+		btn.disabled = !ready;
+		btn.classList.toggle("modern-ready", ready);
+	}
+
+	function triggerModernSendAnimation(type) {
+		if (interactionMode !== "modern") return;
+		const target = type === "text" ? $("#textMode") : $("#fileMode");
+		target.classList.remove("modern-sending");
+		void target.offsetWidth;
+		target.classList.add("modern-sending");
+		setTimeout(() => target.classList.remove("modern-sending"), 900);
+	}
+
+	function foldPaperAfterPush(input) {
+		if (interactionMode !== "modern" || input?.type !== "text" || !paperOpen) return;
+		const textMode = $("#textMode");
+		const delay = textMode.classList.contains("modern-sending") ? 920 : 0;
+		setTimeout(() => {
+			if (interactionMode === "modern" && paperOpen) {
+				setPaperOpen(false, false);
+			}
+		}, delay);
+	}
+
+	$$(".interaction").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			applyInteractionMode(btn.dataset.interactionMode);
+		});
+	});
+
+	$("#paperPrompt").addEventListener("click", () => setPaperOpen(true, true));
+	$("#paperCollapse").addEventListener("click", () => setPaperOpen(false, false));
+
+	$("#pushText").addEventListener("input", () => {
+		if (interactionMode === "modern" && $("#pushText").value.trim()) {
+			setPaperOpen(true, false);
+		}
+		updatePaperFoldLabel();
+		updateModernReadyState();
+	});
+
+	document.addEventListener("pointerdown", (e) => {
+		if (interactionMode !== "modern" || !paperOpen) return;
+		if (!$("#pushTab").classList.contains("active")) return;
+		if ($(".mode.active")?.dataset.mode !== "text") return;
+		if ($("#textMode").contains(e.target)) return;
+		if ($("#pushText").value.trim()) return;
+
+		setPaperOpen(false, false);
+	});
+
+	applyInteractionMode(interactionMode);
 
 	// ── Push ──────────────────────────────────────────────────
 
 	$("#pushBtn").addEventListener("click", async () => {
 		const btn = $("#pushBtn");
 		const isText = $(".mode.active").dataset.mode === "text";
-		btn.disabled = true;
-		btn.textContent = t("pushing");
 
 		try {
 			const input = getPushInput(isText);
 			if (!input) return;
+			btn.dataset.busy = "true";
+			btn.disabled = true;
+			btn.textContent = t("pushing");
+			triggerModernSendAnimation(input.type);
 			clearPushResult();
 
 			if (transferMode === "smart") {
@@ -491,8 +659,10 @@
 		} catch (e) {
 			toast(t("reqFail") + ": " + e.message, "error");
 		} finally {
+			delete btn.dataset.busy;
 			btn.disabled = false;
 			btn.textContent = t("push");
+			updateModernReadyState();
 		}
 	});
 
@@ -543,6 +713,7 @@
 			const result = await uploadToServer(input);
 			renderServerPushResult(result);
 			toast(t("pushOk"), "success");
+			foldPaperAfterPush(input);
 		} catch (e) {
 			toast(`${t("pushFail")}: ${e.message}`, "error");
 		}
@@ -849,6 +1020,7 @@
 		setPushResultActions("p2pDone");
 		updateP2PStatus("push", t("p2pNotStored"), false, currentResult.url);
 		toast(t("p2pSent"), "success");
+		foldPaperAfterPush(input);
 	}
 
 	function waitDataChannelBuffer(dc) {
@@ -890,6 +1062,7 @@
 			renderServerPushResult(result);
 			p2pState = null;
 			toast(t("pushOk"), "success");
+			foldPaperAfterPush(state.input);
 		} catch (e) {
 			state.fallbackStarted = false;
 			updateP2PStatus("push", t("p2pFailed"), false, currentResult.url);
@@ -1292,9 +1465,21 @@
 
 	// ── Pull ──────────────────────────────────────────────────
 
+	function setSafeState(state) {
+		const safe = $(".safe-visual");
+		if (!safe) return;
+		safe.classList.remove("safe-loading", "safe-open", "safe-error");
+		if (!state) return;
+		if (state === "error") {
+			void safe.offsetWidth;
+		}
+		safe.classList.add("safe-" + state);
+	}
+
 	$("#pullBtn").addEventListener("click", async () => {
 		const key = $("#pullKey").value.trim();
 		if (!key) {
+			setSafeState("error");
 			toast(t("enterKeyWarn"), "error");
 			return;
 		}
@@ -1304,6 +1489,7 @@
 		const btn = $("#pullBtn");
 		btn.disabled = true;
 		btn.textContent = t("pulling");
+		setSafeState("loading");
 
 		try {
 			const headers = {
@@ -1322,6 +1508,7 @@
 			if (ct.includes("application/json")) {
 				const data = await jsonResp.json();
 				if (data.code !== 0) {
+					setSafeState("error");
 					toast(`${t("pullFail")}: ${data.msg}`, "error");
 					return;
 				}
@@ -1335,6 +1522,7 @@
 					if (r.deleted) meta += ` · ${t("deleted")}`;
 					$("#pullMeta").textContent = meta;
 					$("#pullResult").classList.remove("hidden");
+					setSafeState("open");
 					toast(t("pullOk"), "success");
 					return;
 				}
@@ -1343,6 +1531,7 @@
 			const streamResp = await fetch(apiUrl("/pull/" + key), { headers });
 			if (!streamResp.ok) {
 				const errData = await streamResp.json().catch(() => null);
+				setSafeState("error");
 				toast(
 					`${t("pullFail")}: ${errData?.msg || "HTTP " + streamResp.status}`,
 					"error",
@@ -1376,14 +1565,18 @@
 			if (deleted) meta += ` · ${t("deleted")}`;
 			$("#pullMeta").textContent = meta;
 			$("#pullResult").classList.remove("hidden");
+			setSafeState("open");
 			toast(t("pullOk"), "success");
 		} catch (e) {
+			setSafeState("error");
 			toast(t("reqFail") + ": " + e.message, "error");
 		} finally {
 			btn.disabled = false;
 			btn.textContent = t("pull");
 		}
 	});
+
+	$("#pullKey").addEventListener("input", () => setSafeState(""));
 
 	$("#clearPull").addEventListener("click", () => {
 		if (p2pState && p2pState.role === "receiver") {
@@ -1402,6 +1595,7 @@
 		$("#pullFileResult").classList.add("hidden");
 		$("#pullMeta").textContent = "";
 		$("#pullResult").classList.add("hidden");
+		setSafeState("");
 	});
 
 	$("#copyText").addEventListener("click", () => {
