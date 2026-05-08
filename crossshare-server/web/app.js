@@ -15,8 +15,10 @@
 			text: "文本",
 			file: "文件",
 			pushPlaceholder: "输入要分享的文本内容…",
-			dropHint: "点击选择文件或拖拽到此处",
-			dropSubHint: "文件会按当前传输模式分享",
+			dropHint: "选择文件",
+			dropSubHint: "或拖拽到此处",
+			dropReady: "文件已选择",
+			dropReadyHint: "可继续推送",
 			defaultPlaceholder: "默认",
 			seconds: "秒",
 			smartTransfer: "直连优先",
@@ -95,8 +97,10 @@
 			text: "Text",
 			file: "File",
 			pushPlaceholder: "Enter text to share…",
-			dropHint: "Click to select file or drag & drop here",
-			dropSubHint: "Files follow the selected transfer mode",
+			dropHint: "Select file",
+			dropSubHint: "or drag it here",
+			dropReady: "File ready",
+			dropReadyHint: "Ready to push",
 			defaultPlaceholder: "Default",
 			seconds: "sec",
 			smartTransfer: "Direct First",
@@ -441,8 +445,20 @@
 		}
 	});
 
+	function updateDropZoneState() {
+		const hasFile = !!selectedFile;
+		dropZone.classList.toggle("has-file", hasFile);
+		const titleKey = hasFile ? "dropReady" : "dropHint";
+		const subtitleKey = hasFile ? "dropReadyHint" : "dropSubHint";
+		$("#dropTitle").setAttribute("data-i18n", titleKey);
+		$("#dropSubtitle").setAttribute("data-i18n", subtitleKey);
+		$("#dropTitle").textContent = t(titleKey);
+		$("#dropSubtitle").textContent = t(subtitleKey);
+	}
+
 	function selectFile(file) {
 		selectedFile = file;
+		updateDropZoneState();
 		const info = $("#fileInfo");
 		info.classList.remove("hidden");
 		info.innerHTML = `<span>${file.name}</span><span>${humanSize(file.size)}</span>`;

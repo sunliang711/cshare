@@ -128,11 +128,33 @@
 
 						<div id="fileMode" class="orb-content hidden">
 							<div class="drop-zone" id="dropZone">
-								<p data-i18n="dropHint">
-									点击选择文件或拖拽到此处
-								</p>
-								<span data-i18n="dropSubHint">
-									文件会按当前传输模式分享
+								<span class="drop-icon" aria-hidden="true">
+									<svg
+										class="drop-icon-upload"
+										viewBox="0 0 24 24"
+										fill="none"
+									>
+										<path d="M12 16V5" />
+										<path d="M8 9l4-4 4 4" />
+										<path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+									</svg>
+									<svg
+										class="drop-icon-ready"
+										viewBox="0 0 24 24"
+										fill="none"
+									>
+										<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+										<path d="M14 3v5h5" />
+										<path d="M9 14l2 2 4-4" />
+									</svg>
+								</span>
+								<p id="dropTitle" data-i18n="dropHint">选择文件</p>
+								<span
+									id="dropSubtitle"
+									class="drop-subtitle"
+									data-i18n="dropSubHint"
+								>
+									或拖拽到此处
 								</span>
 								<input type="file" id="fileInput" />
 							</div>
