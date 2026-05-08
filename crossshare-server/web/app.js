@@ -16,6 +16,7 @@
 			file: "文件",
 			pushPlaceholder: "输入要分享的文本内容…",
 			dropHint: "点击选择文件或拖拽到此处",
+			dropSubHint: "文件会按当前传输模式分享",
 			defaultPlaceholder: "默认",
 			seconds: "秒",
 			smartTransfer: "直连优先",
@@ -92,6 +93,7 @@
 			file: "File",
 			pushPlaceholder: "Enter text to share…",
 			dropHint: "Click to select file or drag & drop here",
+			dropSubHint: "Files follow the selected transfer mode",
 			defaultPlaceholder: "Default",
 			seconds: "sec",
 			smartTransfer: "Direct First",
@@ -199,7 +201,7 @@
 
 	// ── Theme ──────────────────────────────────────────────
 
-	let currentTheme = localStorage.getItem("cs_theme") || "dark";
+	let currentTheme = localStorage.getItem("cs_theme") || "light";
 
 	function applyTheme(theme) {
 		currentTheme = theme;
@@ -209,7 +211,7 @@
 		btn.textContent = theme === "dark" ? "☀" : "☾";
 		const metaColor = $("#metaThemeColor");
 		if (metaColor) {
-			metaColor.content = theme === "dark" ? "#0f1117" : "#f5f5f7";
+			metaColor.content = theme === "dark" ? "#0d1117" : "#f7f8fb";
 		}
 	}
 
@@ -381,6 +383,7 @@
 			const isText = btn.dataset.mode === "text";
 			$("#textMode").classList.toggle("hidden", !isText);
 			$("#fileMode").classList.toggle("hidden", isText);
+			$("#fileInfo").classList.toggle("hidden", isText || !selectedFile);
 		});
 	});
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
 	<head>
 		<meta charset="UTF-8" />
 		<meta
@@ -7,48 +7,47 @@
 			content="width=device-width, initial-scale=1.0, viewport-fit=cover"
 		/>
 		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="theme-color" content="#0f1117" id="metaThemeColor" />
+		<meta name="theme-color" content="#f7f8fb" id="metaThemeColor" />
 		<title>CrossShare</title>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="stylesheet" href="style.css" />
 	</head>
 	<body>
-		<div class="container">
-			<header>
-				<div class="header-top">
-					<div class="header-actions-left">
-						<button
-							class="icon-btn"
-							id="langToggle"
-							title="Switch to English"
-						>
-							EN
-						</button>
-					</div>
-					<div class="header-center">
+		<div class="app-shell">
+			<header class="app-header">
+				<a class="brand" href="/" aria-label="CrossShare">
+					<img src="/favicon.svg" alt="" />
+					<div>
 						<h1>CrossShare</h1>
 						<p class="subtitle" data-i18n="subtitle">
 							跨设备内容分享
 						</p>
 					</div>
-					<div class="header-actions-right">
-						<button
-							class="icon-btn"
-							id="themeToggle"
-							data-i18n-title="toggleTheme"
-							title="切换主题"
-						>
-							☀
-						</button>
-						<button
-							class="icon-btn"
-							id="settingsToggle"
-							data-i18n-title="settings"
-							title="设置"
-						>
-							⚙
-						</button>
-					</div>
+				</a>
+				<div class="header-actions">
+					<button
+						class="icon-btn"
+						id="langToggle"
+						title="Switch to English"
+					>
+						EN
+					</button>
+					<button
+						class="icon-btn"
+						id="themeToggle"
+						data-i18n-title="toggleTheme"
+						title="切换主题"
+					>
+						☾
+					</button>
+					<button
+						class="icon-btn"
+						id="settingsToggle"
+						data-i18n-title="settings"
+						title="设置"
+					>
+						⚙
+					</button>
 				</div>
 			</header>
 
@@ -88,214 +87,238 @@
 				</div>
 			</div>
 
-			<nav class="tabs">
-				<button class="tab active" data-tab="push" data-i18n="push">
-					推送
-				</button>
-				<button class="tab" data-tab="pull" data-i18n="pull">
-					拉取
-				</button>
-			</nav>
+			<main class="radar-stage">
+				<div class="radar-rings" aria-hidden="true"></div>
 
-			<section id="pushTab" class="tab-content active">
-				<div class="mode-switch">
-					<button
-						class="mode active"
-						data-mode="text"
-						data-i18n="text"
-					>
-						文本
+				<nav class="tabs">
+					<button class="tab active" data-tab="push" data-i18n="push">
+						推送
 					</button>
-					<button class="mode" data-mode="file" data-i18n="file">
-						文件
-					</button>
-				</div>
-
-				<div id="textMode">
-					<textarea
-						id="pushText"
-						data-i18n-placeholder="pushPlaceholder"
-						placeholder="输入要分享的文本内容…"
-						rows="6"
-					></textarea>
-				</div>
-
-				<div id="fileMode" class="hidden">
-					<div class="drop-zone" id="dropZone">
-						<p data-i18n="dropHint">点击选择文件或拖拽到此处</p>
-						<input type="file" id="fileInput" />
-					</div>
-					<div id="fileInfo" class="file-info hidden"></div>
-				</div>
-
-				<div class="options-row">
-					<label class="inline">
-						<span>TTL</span>
-						<input
-							type="number"
-							id="pushTtl"
-							data-i18n-placeholder="defaultPlaceholder"
-							placeholder="默认"
-							min="1"
-						/>
-						<span class="unit" data-i18n="seconds">秒</span>
-					</label>
-				</div>
-
-				<div class="transfer-switch">
-					<button
-						class="transfer active"
-						data-transfer="smart"
-						data-i18n="smartTransfer"
-					>
-						直连优先
-					</button>
-					<button
-						class="transfer"
-						data-transfer="server"
-						data-i18n="serverTransfer"
-					>
-						服务器暂存
-					</button>
-				</div>
-
-				<button
-					class="btn btn-primary btn-block"
-					id="pushBtn"
-					data-i18n="push"
-				>
-					推送
-				</button>
-
-				<div id="pushResult" class="result hidden">
-					<div class="result-key">
-						<span id="resultKey"></span>
-						<div class="result-key-actions">
-							<button
-								class="btn btn-sm"
-								id="copyKey"
-								data-i18n="copy"
-							>
-								复制
-							</button>
-							<button
-								class="btn btn-sm"
-								id="copyLink"
-								data-i18n="copyLink"
-							>
-								复制链接
-							</button>
-							<button
-								class="btn btn-sm"
-								id="showQr"
-								data-i18n="showQr"
-							>
-								查看二维码
-							</button>
-							<button
-								class="btn btn-sm hidden"
-								id="saveToServer"
-								data-i18n="saveToServer"
-							>
-								存到服务器
-							</button>
-							<button
-								class="btn btn-sm btn-ghost hidden"
-								id="cancelP2p"
-								data-i18n="cancel"
-							>
-								取消
-							</button>
-						</div>
-					</div>
-					<div class="result-meta" id="resultMeta"></div>
-				</div>
-			</section>
-
-			<section id="pullTab" class="tab-content">
-				<div class="pull-input">
-					<input
-						type="text"
-						id="pullKey"
-						data-i18n-placeholder="enterKey"
-						placeholder="输入 Key"
-					/>
-					<button
-						class="btn btn-primary"
-						id="pullBtn"
-						data-i18n="pull"
-					>
+					<button class="tab" data-tab="pull" data-i18n="pull">
 						拉取
 					</button>
-					<button
-						class="btn btn-ghost"
-						id="clearPull"
-						data-i18n="clear"
-					>
-						清除
-					</button>
-				</div>
+				</nav>
 
-				<div class="options-row">
-					<label class="checkbox">
-						<input type="checkbox" id="deleteAfterPull" />
-						<span data-i18n="deleteAfterPull">拉取后删除</span>
-					</label>
-				</div>
-
-				<div id="pullResult" class="result hidden">
-					<div id="pullTextResult" class="hidden">
-						<div class="pull-text-header">
-							<span class="pull-label" data-i18n="textContent"
-								>文本内容</span
-							>
-							<button
-								class="btn btn-sm"
-								id="copyText"
-								data-i18n="copy"
-							>
-								复制
-							</button>
-						</div>
-						<pre id="pullTextContent"></pre>
-					</div>
-					<div id="pullFileResult" class="hidden">
-						<div class="file-download">
-							<span id="pullFileName"></span>
-							<a
-								id="pullFileLink"
-								class="btn btn-sm"
-								data-i18n="download"
-								>下载</a
-							>
-						</div>
-					</div>
-					<div class="result-meta" id="pullMeta"></div>
-				</div>
-
-				<div class="divider"></div>
-
-				<div class="delete-section">
-					<div class="pull-input">
-						<input
-							type="text"
-							id="deleteKey"
-							data-i18n-placeholder="enterKey"
-							placeholder="输入 Key"
-						/>
+				<section id="pushTab" class="tab-content active">
+					<div class="mode-switch">
 						<button
-							class="btn btn-danger"
-							id="deleteBtn"
-							data-i18n="delete"
+							class="mode active"
+							data-mode="text"
+							data-i18n="text"
 						>
-							删除
+							文本
+						</button>
+						<button class="mode" data-mode="file" data-i18n="file">
+							文件
 						</button>
 					</div>
-					<div id="deleteResult" class="result hidden">
-						<div class="result-meta" id="deleteMeta"></div>
+
+					<div class="share-orb">
+						<div id="textMode" class="orb-content">
+							<label class="orb-label" for="pushText" data-i18n="textContent">
+								文本内容
+							</label>
+							<textarea
+								id="pushText"
+								data-i18n-placeholder="pushPlaceholder"
+								placeholder="输入要分享的文本内容…"
+								rows="5"
+							></textarea>
+						</div>
+
+						<div id="fileMode" class="orb-content hidden">
+							<div class="drop-zone" id="dropZone">
+								<p data-i18n="dropHint">
+									点击选择文件或拖拽到此处
+								</p>
+								<span data-i18n="dropSubHint">
+									文件会按当前传输模式分享
+								</span>
+								<input type="file" id="fileInput" />
+							</div>
+						</div>
 					</div>
-				</div>
-			</section>
+
+					<div id="fileInfo" class="file-info hidden"></div>
+
+					<div class="action-dock">
+						<div class="options-row">
+							<label class="inline">
+								<span>TTL</span>
+								<input
+									type="number"
+									id="pushTtl"
+									data-i18n-placeholder="defaultPlaceholder"
+									placeholder="默认"
+									min="1"
+								/>
+								<span class="unit" data-i18n="seconds">秒</span>
+							</label>
+						</div>
+
+						<div class="transfer-switch">
+							<button
+								class="transfer active"
+								data-transfer="smart"
+								data-i18n="smartTransfer"
+							>
+								直连优先
+							</button>
+							<button
+								class="transfer"
+								data-transfer="server"
+								data-i18n="serverTransfer"
+							>
+								服务器暂存
+							</button>
+						</div>
+
+						<button
+							class="btn btn-primary btn-block"
+							id="pushBtn"
+							data-i18n="push"
+						>
+							推送
+						</button>
+					</div>
+
+					<div id="pushResult" class="result hidden">
+						<div class="result-key">
+							<span id="resultKey"></span>
+							<div class="result-key-actions">
+								<button
+									class="btn btn-sm"
+									id="copyKey"
+									data-i18n="copy"
+								>
+									复制
+								</button>
+								<button
+									class="btn btn-sm"
+									id="copyLink"
+									data-i18n="copyLink"
+								>
+									复制链接
+								</button>
+								<button
+									class="btn btn-sm"
+									id="showQr"
+									data-i18n="showQr"
+								>
+									查看二维码
+								</button>
+								<button
+									class="btn btn-sm hidden"
+									id="saveToServer"
+									data-i18n="saveToServer"
+								>
+									存到服务器
+								</button>
+								<button
+									class="btn btn-sm btn-ghost hidden"
+									id="cancelP2p"
+									data-i18n="cancel"
+								>
+									取消
+								</button>
+							</div>
+						</div>
+						<div class="result-meta" id="resultMeta"></div>
+					</div>
+				</section>
+
+				<section id="pullTab" class="tab-content">
+					<div class="pull-orb">
+						<label class="orb-label" for="pullKey" data-i18n="enterKey">
+							输入 Key
+						</label>
+						<div class="pull-input">
+							<input
+								type="text"
+								id="pullKey"
+								data-i18n-placeholder="enterKey"
+								placeholder="输入 Key"
+							/>
+							<button
+								class="btn btn-primary"
+								id="pullBtn"
+								data-i18n="pull"
+							>
+								拉取
+							</button>
+						</div>
+						<div class="pull-actions">
+							<label class="checkbox">
+								<input type="checkbox" id="deleteAfterPull" />
+								<span data-i18n="deleteAfterPull">拉取后删除</span>
+							</label>
+							<button
+								class="btn btn-ghost"
+								id="clearPull"
+								data-i18n="clear"
+							>
+								清除
+							</button>
+						</div>
+					</div>
+
+					<div id="pullResult" class="result hidden">
+						<div id="pullTextResult" class="hidden">
+							<div class="pull-text-header">
+								<span class="pull-label" data-i18n="textContent"
+									>文本内容</span
+								>
+								<button
+									class="btn btn-sm"
+									id="copyText"
+									data-i18n="copy"
+								>
+									复制
+								</button>
+							</div>
+							<pre id="pullTextContent"></pre>
+						</div>
+						<div id="pullFileResult" class="hidden">
+							<div class="file-download">
+								<span id="pullFileName"></span>
+								<a
+									id="pullFileLink"
+									class="btn btn-sm"
+									data-i18n="download"
+									>下载</a
+								>
+							</div>
+						</div>
+						<div class="result-meta" id="pullMeta"></div>
+					</div>
+
+					<div class="delete-section">
+						<div class="pull-input">
+							<input
+								type="text"
+								id="deleteKey"
+								data-i18n-placeholder="enterKey"
+								placeholder="输入 Key"
+							/>
+							<button
+								class="btn btn-danger"
+								id="deleteBtn"
+								data-i18n="delete"
+							>
+								删除
+							</button>
+						</div>
+						<div id="deleteResult" class="result hidden">
+							<div class="result-meta" id="deleteMeta"></div>
+						</div>
+					</div>
+				</section>
+
+				<footer class="app-footer">
+					<img src="/favicon.svg" alt="" />
+					<p data-i18n="subtitle">跨设备内容分享</p>
+				</footer>
+			</main>
 
 			<div id="toast" class="toast hidden"></div>
 		</div>
