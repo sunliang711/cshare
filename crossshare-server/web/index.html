@@ -168,6 +168,13 @@
 							>
 								复制链接
 							</button>
+							<button
+								class="btn btn-sm"
+								id="showQr"
+								data-i18n="showQr"
+							>
+								查看二维码
+							</button>
 						</div>
 					</div>
 					<div class="result-meta" id="resultMeta"></div>
@@ -255,6 +262,28 @@
 			<div id="toast" class="toast hidden"></div>
 		</div>
 
+		<div id="qrModal" class="modal hidden" role="dialog" aria-modal="true">
+			<div class="modal-backdrop" id="qrModalBackdrop"></div>
+			<div class="modal-panel">
+				<div class="modal-header">
+					<h2 data-i18n="shareQr">分享二维码</h2>
+					<button
+						class="icon-btn"
+						id="closeQr"
+						data-i18n-title="close"
+						title="关闭"
+					>
+						&times;
+					</button>
+				</div>
+				<div class="qr-box">
+					<canvas id="qrCanvas" width="260" height="260"></canvas>
+				</div>
+				<div class="qr-link" id="qrLink"></div>
+			</div>
+		</div>
+
+		<script src="qrcode-lite.js"></script>
 		<script src="app.js"></script>
 	</body>
 </html>

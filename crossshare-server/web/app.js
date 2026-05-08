@@ -20,6 +20,9 @@
 			seconds: "秒",
 			copy: "复制",
 			copyLink: "复制链接",
+			showQr: "查看二维码",
+			shareQr: "分享二维码",
+			close: "关闭",
 			enterKey: "输入 Key",
 			deleteAfterPull: "拉取后删除",
 			textContent: "文本内容",
@@ -48,6 +51,7 @@
 			keyCopied: "Key 已复制",
 			linkCopied: "链接已复制",
 			contentCopied: "内容已复制",
+			qrFail: "二维码生成失败",
 			reqFail: "请求失败",
 			metaType: "类型",
 			metaSize: "大小",
@@ -68,6 +72,9 @@
 			seconds: "sec",
 			copy: "Copy",
 			copyLink: "Copy Link",
+			showQr: "QR Code",
+			shareQr: "Share QR Code",
+			close: "Close",
 			enterKey: "Enter Key",
 			deleteAfterPull: "Delete after pull",
 			textContent: "Text Content",
@@ -96,6 +103,7 @@
 			keyCopied: "Key copied",
 			linkCopied: "Link copied",
 			contentCopied: "Content copied",
+			qrFail: "Failed to generate QR code",
 			reqFail: "Request failed",
 			metaType: "Type",
 			metaSize: "Size",
@@ -189,6 +197,14 @@
 	function authHeaders() {
 		const tk = loadSettings().token;
 		return tk ? { Authorization: "Bearer " + tk } : {};
+	}
+
+	function buildShareUrl(key) {
+		const url = new URL(window.location.href);
+		url.search = "";
+		url.hash = "";
+		url.searchParams.set("key", key);
+		return url.toString();
 	}
 
 	// ── Init ──────────────────────────────────────────────────
@@ -408,13 +424,32 @@
 
 	$("#copyLink").addEventListener("click", () => {
 		const key = $("#resultKey").textContent;
-		const url = new URL(window.location.href);
-		url.search = "";
-		url.hash = "";
-		url.searchParams.set("key", key);
-		copyText(url.toString());
+		copyText(buildShareUrl(key));
 		toast(t("linkCopied"), "success");
 	});
+
+	$("#showQr").addEventListener("click", () => {
+		const key = $("#resultKey").textContent;
+		const shareUrl = buildShareUrl(key);
+		const canvas = $("#qrCanvas");
+
+		try {
+			window.CrossShareQR.render(canvas, shareUrl, { size: 260 });
+		} catch (e) {
+			toast(t("qrFail") + ": " + e.message, "error");
+			return;
+		}
+
+		$("#qrLink").textContent = shareUrl;
+		$("#qrModal").classList.remove("hidden");
+	});
+
+	function closeQrModal() {
+		$("#qrModal").classList.add("hidden");
+	}
+
+	$("#closeQr").addEventListener("click", closeQrModal);
+	$("#qrModalBackdrop").addEventListener("click", closeQrModal);
 
 	// ── Pull ──────────────────────────────────────────────────
 
@@ -656,6 +691,10 @@
 	// ── Keyboard shortcut ─────────────────────────────────────
 
 	document.addEventListener("keydown", (e) => {
+		if (e.key === "Escape") {
+			closeQrModal();
+			return;
+		}
 		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 			const pushActive = $("#pushTab").classList.contains("active");
 			if (pushActive) {
