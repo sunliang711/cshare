@@ -34,6 +34,7 @@ type Params struct {
 	HealthHandler *handler.HealthHandler
 	PushHandler   *handler.PushHandler
 	PullHandler   *handler.PullHandler
+	P2PHandler    *handler.P2PHandler
 	RateLimiter   *middleware.RateLimiter
 }
 
@@ -66,6 +67,15 @@ func New(p Params) *http.Server {
 		{
 			pull.GET("/:key", p.PullHandler.Pull)
 			pull.DELETE("/:key", p.PullHandler.Delete)
+		}
+
+		p2p := v1.Group("/p2p")
+		p2p.Use(authMw)
+		{
+			p2p.POST("/sessions", p.P2PHandler.CreateSession)
+			p2p.GET("/sessions/:session_id/messages", p.P2PHandler.GetMessages)
+			p2p.POST("/sessions/:session_id/messages", p.P2PHandler.PostMessage)
+			p2p.DELETE("/sessions/:session_id", p.P2PHandler.CloseSession)
 		}
 	}
 

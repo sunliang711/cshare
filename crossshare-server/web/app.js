@@ -18,11 +18,15 @@
 			dropHint: "点击选择文件或拖拽到此处",
 			defaultPlaceholder: "默认",
 			seconds: "秒",
+			smartTransfer: "智能传输",
+			serverTransfer: "存到服务器",
 			copy: "复制",
 			copyLink: "复制链接",
 			showQr: "查看二维码",
 			shareQr: "分享二维码",
 			close: "关闭",
+			cancel: "取消",
+			saveToServer: "存到服务器",
 			enterKey: "输入 Key",
 			deleteAfterPull: "拉取后删除",
 			textContent: "文本内容",
@@ -41,6 +45,19 @@
 			pushing: "推送中…",
 			pushOk: "推送成功",
 			pushFail: "推送失败",
+			p2pUnsupported: "当前浏览器不支持直连，已切换服务器传输",
+			p2pWaiting: "等待接收方连接，请保持此页面打开",
+			p2pConnecting: "正在建立直连",
+			p2pConnected: "直连已建立",
+			p2pSending: "直连传输中",
+			p2pSent: "直连传输完成",
+			p2pReceiving: "正在接收直连内容",
+			p2pDone: "直连接收完成",
+			p2pFailed: "直连失败",
+			p2pFallback: "正在改用服务器传输",
+			p2pCancelled: "直连已取消",
+			p2pLinkLabel: "直连链接",
+			p2pSenderOffline: "发送方不在线或无法直连",
 			pullFail: "拉取失败",
 			pulling: "拉取中…",
 			pullOk: "拉取成功",
@@ -70,11 +87,15 @@
 			dropHint: "Click to select file or drag & drop here",
 			defaultPlaceholder: "Default",
 			seconds: "sec",
+			smartTransfer: "Smart",
+			serverTransfer: "Server",
 			copy: "Copy",
 			copyLink: "Copy Link",
 			showQr: "QR Code",
 			shareQr: "Share QR Code",
 			close: "Close",
+			cancel: "Cancel",
+			saveToServer: "Save to Server",
 			enterKey: "Enter Key",
 			deleteAfterPull: "Delete after pull",
 			textContent: "Text Content",
@@ -93,6 +114,19 @@
 			pushing: "Pushing…",
 			pushOk: "Push successful",
 			pushFail: "Push failed",
+			p2pUnsupported: "Direct transfer is not supported, using server transfer",
+			p2pWaiting: "Waiting for receiver, keep this page open",
+			p2pConnecting: "Connecting directly",
+			p2pConnected: "Direct connection established",
+			p2pSending: "Direct transfer in progress",
+			p2pSent: "Direct transfer complete",
+			p2pReceiving: "Receiving direct content",
+			p2pDone: "Direct receive complete",
+			p2pFailed: "Direct transfer failed",
+			p2pFallback: "Switching to server transfer",
+			p2pCancelled: "Direct transfer cancelled",
+			p2pLinkLabel: "Direct Link",
+			p2pSenderOffline: "Sender is offline or direct connection failed",
 			pullFail: "Pull failed",
 			pulling: "Pulling…",
 			pullOk: "Pull successful",
@@ -207,6 +241,27 @@
 		return url.toString();
 	}
 
+	function buildP2PUrl(sessionID) {
+		const url = new URL(window.location.href);
+		url.search = "";
+		url.hash = "";
+		url.searchParams.set("p2p", sessionID);
+		return url.toString();
+	}
+
+	let currentResult = { mode: "", key: "", url: "" };
+	let transferMode = "smart";
+	let p2pState = null;
+
+	const p2pIceServers = [
+		{ urls: "stun:stun.l.google.com:19302" },
+		{ urls: "stun:stun.cloudflare.com:3478" },
+	];
+	const p2pConnectTimeout = 30000;
+	const p2pChunkSize = 64 * 1024;
+	const p2pBufferLimit = 1 << 20;
+	const p2pPollWaitSeconds = 25;
+
 	// ── Init ──────────────────────────────────────────────────
 
 	// Apply saved theme
@@ -218,8 +273,9 @@
 
 	(function autoPullFromURL() {
 		const params = new URLSearchParams(window.location.search);
+		const p2pSession = params.get("p2p");
 		const key = params.get("key");
-		if (!key) return;
+		if (!key && !p2pSession) return;
 
 		// Clean URL without reloading
 		const cleanUrl = window.location.pathname + window.location.hash;
@@ -230,6 +286,11 @@
 		$$(".tab-content").forEach((c) => c.classList.remove("active"));
 		$('.tab[data-tab="pull"]').classList.add("active");
 		$("#pullTab").classList.add("active");
+
+		if (p2pSession) {
+			setTimeout(() => startP2PReceive(p2pSession), 0);
+			return;
+		}
 
 		// Fill key and trigger pull
 		$("#pullKey").value = key;
@@ -307,6 +368,14 @@
 		});
 	});
 
+	$$(".transfer").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			$$(".transfer").forEach((b) => b.classList.remove("active"));
+			btn.classList.add("active");
+			transferMode = btn.dataset.transfer;
+		});
+	});
+
 	// ── Push: file handling ───────────────────────────────────
 
 	let selectedFile = null;
@@ -353,62 +422,20 @@
 		btn.textContent = t("pushing");
 
 		try {
-			let resp;
-			if (isText) {
-				const text = $("#pushText").value;
-				if (!text.trim()) {
-					toast(t("enterText"), "error");
+			const input = getPushInput(isText);
+			if (!input) return;
+
+			if (transferMode === "smart") {
+				if (!supportsP2P()) {
+					toast(t("p2pUnsupported"), "error");
+					await pushToServer(input);
 					return;
 				}
-				const body = { text };
-				const ttl = parseInt($("#pushTtl").value);
-				if (ttl > 0) body.ttl = ttl;
-
-				resp = await fetch(apiUrl("/push/text"), {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						...authHeaders(),
-					},
-					body: JSON.stringify(body),
-				});
-			} else {
-				if (!selectedFile) {
-					toast(t("selectFile"), "error");
-					return;
-				}
-				const headers = {
-					"Content-Type": "application/octet-stream",
-					Filename: selectedFile.name,
-					...authHeaders(),
-				};
-				const ttl = parseInt($("#pushTtl").value);
-				if (ttl > 0) headers["X-TTL"] = String(ttl);
-
-				resp = await fetch(apiUrl("/push/binary"), {
-					method: "POST",
-					headers,
-					body: selectedFile,
-				});
-			}
-
-			const data = await resp.json();
-			if (data.code !== 0) {
-				toast(`${t("pushFail")}: ${data.msg}`, "error");
+				await startP2PPush(input);
 				return;
 			}
 
-			const r = data.data;
-			$("#resultKey").textContent = r.key;
-			let meta = `${t("metaType")}: ${r.type} · ${t("metaSize")}: ${humanSize(r.size)} · TTL: ${humanDuration(r.ttl)}`;
-			if (r.filename) meta += ` · ${t("metaFile")}: ${r.filename}`;
-			$("#resultMeta").textContent = meta;
-			$("#pushResult").classList.remove("hidden");
-
-			// Start countdown timer
-			startCountdown(r.expire_at || Math.floor(Date.now() / 1000) + r.ttl);
-
-			toast(t("pushOk"), "success");
+			await pushToServer(input);
 		} catch (e) {
 			toast(t("reqFail") + ": " + e.message, "error");
 		} finally {
@@ -417,20 +444,400 @@
 		}
 	});
 
+	function getPushInput(isText) {
+		const ttl = parseInt($("#pushTtl").value);
+		if (isText) {
+			const text = $("#pushText").value;
+			if (!text.trim()) {
+				toast(t("enterText"), "error");
+				return null;
+			}
+			return {
+				type: "text",
+				text,
+				ttl,
+				size: new Blob([text]).size,
+				contentType: "text/plain; charset=utf-8",
+			};
+		}
+
+		if (!selectedFile) {
+			toast(t("selectFile"), "error");
+			return null;
+		}
+		return {
+			type: "binary",
+			file: selectedFile,
+			ttl,
+			size: selectedFile.size,
+			filename: selectedFile.name,
+			contentType: selectedFile.type || "application/octet-stream",
+		};
+	}
+
+	async function pushToServer(input) {
+		cancelP2P(false);
+
+		try {
+			const result = await uploadToServer(input);
+			renderServerPushResult(result);
+			toast(t("pushOk"), "success");
+		} catch (e) {
+			toast(`${t("pushFail")}: ${e.message}`, "error");
+		}
+	}
+
+	async function uploadToServer(input) {
+		let resp;
+		if (input.type === "text") {
+			const body = { text: input.text };
+			if (input.ttl > 0) body.ttl = input.ttl;
+
+			resp = await fetch(apiUrl("/push/text"), {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					...authHeaders(),
+				},
+				body: JSON.stringify(body),
+			});
+		} else {
+			const headers = {
+				"Content-Type": "application/octet-stream",
+				Filename: input.filename,
+				...authHeaders(),
+			};
+			if (input.ttl > 0) headers["X-TTL"] = String(input.ttl);
+
+			resp = await fetch(apiUrl("/push/binary"), {
+				method: "POST",
+				headers,
+				body: input.file,
+			});
+		}
+
+		const data = await resp.json();
+		if (data.code !== 0) {
+			throw new Error(data.msg || t("pushFail"));
+		}
+
+		return data.data;
+	}
+
+	function renderServerPushResult(r) {
+		currentResult = {
+			mode: "server",
+			key: r.key,
+			url: buildShareUrl(r.key),
+		};
+		$("#resultKey").textContent = r.key;
+		let meta = `${t("metaType")}: ${r.type} · ${t("metaSize")}: ${humanSize(r.size)} · TTL: ${humanDuration(r.ttl)}`;
+		if (r.filename) meta += ` · ${t("metaFile")}: ${r.filename}`;
+		$("#resultMeta").textContent = meta;
+		$("#pushResult").classList.remove("hidden");
+		setPushResultActions("server");
+
+		// Start countdown timer
+		startCountdown(r.expire_at || Math.floor(Date.now() / 1000) + r.ttl);
+	}
+
+	function supportsP2P() {
+		return (
+			window.RTCPeerConnection &&
+			window.RTCSessionDescription &&
+			window.RTCIceCandidate
+		);
+	}
+
+	function setPushResultActions(mode) {
+		$("#copyKey").classList.toggle("hidden", mode !== "server");
+		$("#copyLink").classList.toggle("hidden", !mode);
+		$("#showQr").classList.toggle("hidden", !mode);
+		$("#saveToServer").classList.toggle("hidden", mode !== "p2p");
+		$("#cancelP2p").classList.toggle("hidden", mode !== "p2p");
+	}
+
+	async function startP2PPush(input) {
+		cancelP2P(false);
+
+		const resp = await fetch(apiUrl("/p2p/sessions"), {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...authHeaders(),
+			},
+			body: "{}",
+		});
+		const data = await resp.json();
+		if (data.code !== 0) {
+			toast(`${t("pushFail")}: ${data.msg}`, "error");
+			return;
+		}
+
+		const sessionID = data.data.session_id;
+		const shareUrl = buildP2PUrl(sessionID);
+		currentResult = { mode: "p2p", key: sessionID, url: shareUrl };
+		$("#resultKey").textContent = t("p2pLinkLabel");
+		$("#resultMeta").textContent = `${shareUrl} · ${t("p2pWaiting")}`;
+		$("#pushResult").classList.remove("hidden");
+		setPushResultActions("p2p");
+
+		const pc = new RTCPeerConnection({ iceServers: p2pIceServers });
+		const dc = pc.createDataChannel("crossshare");
+		p2pState = {
+			role: "sender",
+			sessionID,
+			pc,
+			dc,
+			input,
+			lastSeq: 0,
+			stopped: false,
+			connected: false,
+			transferDone: false,
+			fallbackStarted: false,
+			connectTimer: null,
+			pendingCandidates: [],
+		};
+
+		pc.onicecandidate = (event) => {
+			if (event.candidate) {
+				postP2PMessage(sessionID, "sender", "receiver", "candidate", event.candidate.toJSON()).catch(() => {});
+			}
+		};
+		pc.onconnectionstatechange = () => {
+			if (!p2pState || p2pState.sessionID !== sessionID) return;
+			if (pc.connectionState === "connected") {
+				p2pState.connected = true;
+				$("#resultMeta").textContent = `${shareUrl} · ${t("p2pConnected")}`;
+			}
+			if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+				markP2PFailed();
+			}
+		};
+		dc.onopen = () => sendP2PContent(input).catch((e) => {
+			toast(t("reqFail") + ": " + e.message, "error");
+			markP2PFailed();
+		});
+		dc.onerror = () => markP2PFailed();
+
+		const offer = await pc.createOffer();
+		await pc.setLocalDescription(offer);
+		await postP2PMessage(sessionID, "sender", "receiver", "offer", describeSession(pc.localDescription));
+		pollP2PMessages("sender");
+
+		p2pState.connectTimer = setTimeout(() => {
+			if (p2pState && p2pState.sessionID === sessionID && !p2pState.connected) {
+				markP2PFailed();
+			}
+		}, p2pConnectTimeout);
+		toast(t("p2pWaiting"), "success");
+	}
+
+	async function sendP2PContent(input) {
+		if (!p2pState || !p2pState.dc || p2pState.stopped) return;
+
+		const dc = p2pState.dc;
+		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pSending")}`;
+		dc.send(JSON.stringify({
+			kind: "meta",
+			type: input.type,
+			filename: input.filename || "",
+			content_type: input.contentType,
+			size: input.size,
+		}));
+
+		const blob = input.type === "text"
+			? new Blob([input.text], { type: input.contentType })
+			: input.file;
+		for (let offset = 0; offset < blob.size; offset += p2pChunkSize) {
+			if (!p2pState || p2pState.stopped) return;
+			await waitDataChannelBuffer(dc);
+			dc.send(await blob.slice(offset, offset + p2pChunkSize).arrayBuffer());
+		}
+
+		dc.send(JSON.stringify({ kind: "done" }));
+		p2pState.transferDone = true;
+		p2pState.stopped = true;
+		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pSent")}`;
+		toast(t("p2pSent"), "success");
+	}
+
+	function waitDataChannelBuffer(dc) {
+		if (dc.bufferedAmount < p2pBufferLimit) {
+			return Promise.resolve();
+		}
+		dc.bufferedAmountLowThreshold = p2pBufferLimit / 2;
+		return new Promise((resolve) => {
+			dc.onbufferedamountlow = () => {
+				dc.onbufferedamountlow = null;
+				resolve();
+			};
+		});
+	}
+
+	function markP2PFailed() {
+		if (!p2pState || p2pState.transferDone) return;
+		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pFailed")}`;
+		fallbackP2PToServer();
+	}
+
+	async function fallbackP2PToServer() {
+		const state = p2pState;
+		if (!state || state.role !== "sender" || !state.input || state.transferDone || state.fallbackStarted) return;
+		state.fallbackStarted = true;
+		stopP2PTransport(state);
+		state.stopped = true;
+		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pFallback")}`;
+
+		try {
+			const result = await uploadToServer(state.input);
+			await postP2PMessage(state.sessionID, "sender", "receiver", "fallback", {
+				key: result.key,
+			}).catch(() => {});
+			renderServerPushResult(result);
+			p2pState = null;
+			toast(t("pushOk"), "success");
+		} catch (e) {
+			state.fallbackStarted = false;
+			$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pFailed")}`;
+			toast(`${t("pushFail")}: ${e.message}`, "error");
+		}
+	}
+
+	function stopP2PTransport(state) {
+		if (state.connectTimer) clearTimeout(state.connectTimer);
+		if (state.dc) state.dc.close();
+		if (state.pc) state.pc.close();
+	}
+
+	function cancelP2P(showToast) {
+		if (!p2pState) return;
+		const state = p2pState;
+		state.stopped = true;
+		stopP2PTransport(state);
+		if (state.sessionID) {
+			fetch(apiUrl("/p2p/sessions/" + state.sessionID), {
+				method: "DELETE",
+				headers: authHeaders(),
+			}).catch(() => {});
+		}
+		p2pState = null;
+		if (showToast) {
+			$("#resultMeta").textContent = t("p2pCancelled");
+			toast(t("p2pCancelled"), "success");
+		}
+	}
+
+	async function postP2PMessage(sessionID, from, to, type, payload) {
+		const resp = await fetch(apiUrl("/p2p/sessions/" + sessionID + "/messages"), {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...authHeaders(),
+			},
+			body: JSON.stringify({ from, to, type, payload }),
+		});
+		const data = await resp.json();
+		if (data.code !== 0) {
+			throw new Error(data.msg || "p2p signal failed");
+		}
+		return data.data;
+	}
+
+	async function pollP2PMessages(role) {
+		while (p2pState && !p2pState.stopped && p2pState.role === role) {
+			const sessionID = p2pState.sessionID;
+			const after = p2pState.lastSeq;
+			try {
+				const resp = await fetch(
+					apiUrl(`/p2p/sessions/${sessionID}/messages?to=${role}&after=${after}&wait=${p2pPollWaitSeconds}`),
+					{ headers: authHeaders() },
+				);
+				const data = await resp.json();
+				if (data.code !== 0) {
+					if (p2pState && p2pState.role === "receiver") {
+						showP2PReceiveError(t("p2pSenderOffline"));
+					}
+					return;
+				}
+
+				for (const msg of data.data.messages || []) {
+					if (!p2pState || p2pState.stopped) return;
+					p2pState.lastSeq = Math.max(p2pState.lastSeq, msg.seq);
+					await handleP2PMessage(msg);
+				}
+			} catch (e) {
+				if (p2pState && !p2pState.stopped) {
+					if (role === "sender") markP2PFailed();
+					if (role === "receiver") showP2PReceiveError(t("p2pSenderOffline"));
+				}
+				return;
+			}
+		}
+	}
+
+	async function handleP2PMessage(msg) {
+		if (!p2pState || !p2pState.pc) return;
+		const pc = p2pState.pc;
+
+		if (msg.type === "fallback" && p2pState.role === "receiver" && msg.payload?.key) {
+			stopP2PTransport(p2pState);
+			p2pState.stopped = true;
+			$("#pullKey").value = msg.payload.key;
+			$("#pullMeta").textContent = t("p2pFallback");
+			$("#pullBtn").click();
+			return;
+		}
+
+		if (msg.type === "offer" && p2pState.role === "receiver") {
+			$("#pullMeta").textContent = t("p2pConnecting");
+			await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+			await flushP2PCandidates();
+			const answer = await pc.createAnswer();
+			await pc.setLocalDescription(answer);
+			await postP2PMessage(p2pState.sessionID, "receiver", "sender", "answer", describeSession(pc.localDescription));
+			return;
+		}
+
+		if (msg.type === "answer" && p2pState.role === "sender") {
+			await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+			await flushP2PCandidates();
+			return;
+		}
+
+		if (msg.type === "candidate" && msg.payload) {
+			if (!pc.remoteDescription) {
+				p2pState.pendingCandidates.push(msg.payload);
+				return;
+			}
+			await pc.addIceCandidate(new RTCIceCandidate(msg.payload));
+		}
+	}
+
+	async function flushP2PCandidates() {
+		if (!p2pState || !p2pState.pc || !p2pState.pendingCandidates.length) return;
+		const candidates = p2pState.pendingCandidates.splice(0);
+		for (const candidate of candidates) {
+			await p2pState.pc.addIceCandidate(new RTCIceCandidate(candidate));
+		}
+	}
+
+	function describeSession(description) {
+		return { type: description.type, sdp: description.sdp };
+	}
+
 	$("#copyKey").addEventListener("click", () => {
 		copyText($("#resultKey").textContent);
 		toast(t("keyCopied"), "success");
 	});
 
 	$("#copyLink").addEventListener("click", () => {
-		const key = $("#resultKey").textContent;
-		copyText(buildShareUrl(key));
+		copyText(currentResult.url || buildShareUrl($("#resultKey").textContent));
 		toast(t("linkCopied"), "success");
 	});
 
 	$("#showQr").addEventListener("click", () => {
-		const key = $("#resultKey").textContent;
-		const shareUrl = buildShareUrl(key);
+		const shareUrl = currentResult.url || buildShareUrl($("#resultKey").textContent);
 		const canvas = $("#qrCanvas");
 
 		try {
@@ -450,6 +857,125 @@
 
 	$("#closeQr").addEventListener("click", closeQrModal);
 	$("#qrModalBackdrop").addEventListener("click", closeQrModal);
+	$("#saveToServer").addEventListener("click", async () => {
+		if (!p2pState || !p2pState.input) return;
+		await fallbackP2PToServer();
+	});
+	$("#cancelP2p").addEventListener("click", () => cancelP2P(true));
+
+	async function startP2PReceive(sessionID) {
+		if (!supportsP2P()) {
+			showP2PReceiveError(t("p2pUnsupported"));
+			return;
+		}
+
+		cancelP2P(false);
+		$("#pullTextResult").classList.add("hidden");
+		$("#pullFileResult").classList.add("hidden");
+		$("#pullMeta").textContent = t("p2pConnecting");
+		$("#pullResult").classList.remove("hidden");
+
+		const pc = new RTCPeerConnection({ iceServers: p2pIceServers });
+		p2pState = {
+			role: "receiver",
+			sessionID,
+			pc,
+			dc: null,
+			lastSeq: 0,
+			stopped: false,
+			receiveMeta: null,
+			receiveChunks: [],
+			receivedSize: 0,
+			pendingCandidates: [],
+		};
+
+		pc.onicecandidate = (event) => {
+			if (event.candidate) {
+				postP2PMessage(sessionID, "receiver", "sender", "candidate", event.candidate.toJSON()).catch(() => {});
+			}
+		};
+		pc.onconnectionstatechange = () => {
+			if (!p2pState || p2pState.sessionID !== sessionID) return;
+			if (pc.connectionState === "connected") {
+				$("#pullMeta").textContent = t("p2pConnected");
+			}
+			if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+				showP2PReceiveError(t("p2pSenderOffline"));
+			}
+		};
+		pc.ondatachannel = (event) => {
+			p2pState.dc = event.channel;
+			p2pState.dc.binaryType = "arraybuffer";
+			p2pState.dc.onmessage = handleP2PDataMessage;
+			p2pState.dc.onerror = () => showP2PReceiveError(t("p2pSenderOffline"));
+		};
+
+		pollP2PMessages("receiver");
+	}
+
+	function handleP2PDataMessage(event) {
+		if (!p2pState || p2pState.role !== "receiver") return;
+
+		if (typeof event.data === "string") {
+			const msg = JSON.parse(event.data);
+			if (msg.kind === "meta") {
+				p2pState.receiveMeta = msg;
+				p2pState.receiveChunks = [];
+				p2pState.receivedSize = 0;
+				$("#pullMeta").textContent = `${t("p2pReceiving")} · ${t("metaSize")}: ${humanSize(msg.size || 0)}`;
+				return;
+			}
+			if (msg.kind === "done") {
+				finishP2PReceive();
+			}
+			return;
+		}
+
+		p2pState.receiveChunks.push(event.data);
+		p2pState.receivedSize += event.data.byteLength;
+		if (p2pState.receiveMeta) {
+			$("#pullMeta").textContent = `${t("p2pReceiving")} · ${humanSize(p2pState.receivedSize)} / ${humanSize(p2pState.receiveMeta.size || 0)}`;
+		}
+	}
+
+	function finishP2PReceive() {
+		if (!p2pState || !p2pState.receiveMeta) return;
+		const meta = p2pState.receiveMeta;
+		const blob = new Blob(p2pState.receiveChunks, {
+			type: meta.content_type || "application/octet-stream",
+		});
+		p2pState.stopped = true;
+
+		if (meta.type === "text") {
+			blob.text().then((text) => {
+				$("#pullTextContent").textContent = text;
+				$("#pullTextResult").classList.remove("hidden");
+				$("#pullFileResult").classList.add("hidden");
+				$("#pullMeta").textContent = `${t("p2pDone")} · ${t("metaSize")}: ${humanSize(blob.size)}`;
+				toast(t("p2pDone"), "success");
+			});
+			return;
+		}
+
+		const url = URL.createObjectURL(blob);
+		$("#pullFileName").textContent = meta.filename || "download";
+		const link = $("#pullFileLink");
+		link.href = url;
+		link.download = meta.filename || "download";
+		link.textContent = t("download");
+		$("#pullFileResult").classList.remove("hidden");
+		$("#pullTextResult").classList.add("hidden");
+		$("#pullMeta").textContent = `${t("p2pDone")} · ${t("metaSize")}: ${humanSize(blob.size)}`;
+		toast(t("p2pDone"), "success");
+	}
+
+	function showP2PReceiveError(message) {
+		$("#pullTextResult").classList.add("hidden");
+		$("#pullFileResult").classList.add("hidden");
+		$("#pullMeta").textContent = message;
+		$("#pullResult").classList.remove("hidden");
+		toast(message, "error");
+	}
 
 	// ── Pull ──────────────────────────────────────────────────
 

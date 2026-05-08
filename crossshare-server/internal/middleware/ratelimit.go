@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -59,6 +60,10 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if skipRateLimit(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
 
 		ip := c.ClientIP()
 		limiter := rl.getLimiter(ip)
@@ -73,4 +78,12 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func skipRateLimit(path string) bool {
+	switch path {
+	case "/", "/style.css", "/app.js", "/qrcode-lite.js", "/favicon.svg":
+		return true
+	}
+	return strings.HasPrefix(path, "/api/v1/p2p/sessions/") && strings.Contains(path, "/messages")
 }

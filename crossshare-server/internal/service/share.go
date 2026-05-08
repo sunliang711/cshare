@@ -17,7 +17,10 @@ import (
 )
 
 var Module = fx.Options(
-	fx.Provide(NewShareService),
+	fx.Provide(
+		NewShareService,
+		NewP2PService,
+	),
 )
 
 type ShareService struct {

@@ -142,6 +142,23 @@
 					</label>
 				</div>
 
+				<div class="transfer-switch">
+					<button
+						class="transfer active"
+						data-transfer="smart"
+						data-i18n="smartTransfer"
+					>
+						智能传输
+					</button>
+					<button
+						class="transfer"
+						data-transfer="server"
+						data-i18n="serverTransfer"
+					>
+						存到服务器
+					</button>
+				</div>
+
 				<button
 					class="btn btn-primary btn-block"
 					id="pushBtn"
@@ -174,6 +191,20 @@
 								data-i18n="showQr"
 							>
 								查看二维码
+							</button>
+							<button
+								class="btn btn-sm hidden"
+								id="saveToServer"
+								data-i18n="saveToServer"
+							>
+								存到服务器
+							</button>
+							<button
+								class="btn btn-sm btn-ghost hidden"
+								id="cancelP2p"
+								data-i18n="cancel"
+							>
+								取消
 							</button>
 						</div>
 					</div>

@@ -7,5 +7,6 @@ var Module = fx.Options(
 		NewHealthHandler,
 		NewPushHandler,
 		NewPullHandler,
+		NewP2PHandler,
 	),
 )
