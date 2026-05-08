@@ -558,6 +558,65 @@ textarea {
 	overflow-wrap: anywhere;
 }
 
+.p2p-status {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	color: var(--text);
+	font-size: 0.875rem;
+	line-height: 1.5;
+}
+
+.p2p-spinner {
+	width: 0.875rem;
+	height: 0.875rem;
+	border: 2px solid rgba(99, 102, 241, 0.25);
+	border-top-color: var(--primary-hover);
+	border-radius: 999px;
+	flex-shrink: 0;
+	animation: p2pSpin 0.8s linear infinite;
+}
+
+.p2p-dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	background: var(--success);
+	border-radius: 999px;
+	flex-shrink: 0;
+}
+
+.p2p-status-main {
+	min-width: 0;
+	font-weight: 500;
+}
+
+.p2p-elapsed {
+	margin-left: auto;
+	color: var(--text2);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.p2p-status-detail {
+	margin-top: 0.5rem;
+	padding: 0.625rem 0.75rem;
+	background: var(--surface2);
+	border-radius: 8px;
+	color: var(--text2);
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	line-height: 1.5;
+	word-break: break-all;
+	overflow-wrap: anywhere;
+	transition: background 0.25s ease;
+}
+
+@keyframes p2pSpin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 /* ── Pull result ────────────────────────────────────── */
 
 .pull-text-header {
@@ -872,6 +931,15 @@ textarea {
 
 	.result-meta {
 		font-size: 0.75rem;
+	}
+
+	.p2p-status {
+		flex-wrap: wrap;
+	}
+
+	.p2p-elapsed {
+		width: 100%;
+		margin-left: 1.375rem;
 	}
 
 	.icon-btn {

@@ -47,6 +47,10 @@
 			pushFail: "推送失败",
 			p2pUnsupported: "当前浏览器不支持直连，已切换服务器传输",
 			p2pWaiting: "等待接收方连接，请保持此页面打开",
+			p2pSignalExchange: "交换连接信息",
+			p2pLanCheck: "检测局域网直连",
+			p2pInternetCheck: "尝试公网辅助连接",
+			p2pSlow: "直连较慢，仍在尝试",
 			p2pConnecting: "正在建立直连",
 			p2pConnected: "直连已建立",
 			p2pSending: "直连传输中",
@@ -58,6 +62,7 @@
 			p2pCancelled: "直连已取消",
 			p2pLinkLabel: "直连链接",
 			p2pSenderOffline: "发送方不在线或无法直连",
+			p2pElapsed: "耗时",
 			pullFail: "拉取失败",
 			pulling: "拉取中…",
 			pullOk: "拉取成功",
@@ -116,6 +121,10 @@
 			pushFail: "Push failed",
 			p2pUnsupported: "Direct transfer is not supported, using server transfer",
 			p2pWaiting: "Waiting for receiver, keep this page open",
+			p2pSignalExchange: "Exchanging connection info",
+			p2pLanCheck: "Checking LAN direct path",
+			p2pInternetCheck: "Trying assisted connection",
+			p2pSlow: "Direct connection is slow, still trying",
 			p2pConnecting: "Connecting directly",
 			p2pConnected: "Direct connection established",
 			p2pSending: "Direct transfer in progress",
@@ -127,6 +136,7 @@
 			p2pCancelled: "Direct transfer cancelled",
 			p2pLinkLabel: "Direct Link",
 			p2pSenderOffline: "Sender is offline or direct connection failed",
+			p2pElapsed: "Elapsed",
 			pullFail: "Pull failed",
 			pulling: "Pulling…",
 			pullOk: "Pull successful",
@@ -257,7 +267,9 @@
 		{ urls: "stun:stun.l.google.com:19302" },
 		{ urls: "stun:stun.cloudflare.com:3478" },
 	];
-	const p2pConnectTimeout = 30000;
+	const p2pLanFallbackDelay = 2000;
+	const p2pSlowNoticeDelay = 5000;
+	const p2pConnectTimeout = 10000;
 	const p2pChunkSize = 64 * 1024;
 	const p2pBufferLimit = 1 << 20;
 	const p2pPollWaitSeconds = 25;
@@ -557,6 +569,69 @@
 		$("#cancelP2p").classList.toggle("hidden", mode !== "p2p");
 	}
 
+	function updateP2PStatus(target, message, active, detail) {
+		const state = p2pState;
+		if (state) {
+			state.statusTarget = target;
+			state.statusMessage = message;
+			state.statusActive = active;
+			state.statusDetail = detail;
+		}
+		renderP2PStatus(target, message, active, detail, state?.startedAt);
+		if (!state) return;
+
+		if (active && !state.statusTimer) {
+			state.statusTimer = setInterval(() => {
+				if (p2pState !== state || !state.statusActive) {
+					stopP2PStatusTimer(state);
+					return;
+				}
+				renderP2PStatus(
+					state.statusTarget,
+					state.statusMessage,
+					state.statusActive,
+					state.statusDetail,
+					state.startedAt,
+				);
+			}, 500);
+		}
+		if (!active) {
+			stopP2PStatusTimer(state);
+		}
+	}
+
+	function renderP2PStatus(target, message, active, detail, startedAt) {
+		const el = target === "pull" ? $("#pullMeta") : $("#resultMeta");
+		if (!el) return;
+
+		const elapsed = startedAt ? formatElapsed(Date.now() - startedAt) : "";
+		const indicator = active
+			? '<span class="p2p-spinner"></span>'
+			: '<span class="p2p-dot"></span>';
+		el.innerHTML = `
+			<div class="p2p-status ${active ? "is-active" : ""}">
+				${indicator}
+				<span class="p2p-status-main">${escapeHTML(message)}</span>
+				${elapsed ? `<span class="p2p-elapsed">${escapeHTML(t("p2pElapsed"))}: ${elapsed}</span>` : ""}
+			</div>
+			${detail ? `<div class="p2p-status-detail">${escapeHTML(detail)}</div>` : ""}
+		`;
+	}
+
+	function formatElapsed(ms) {
+		return (ms / 1000).toFixed(1) + "s";
+	}
+
+	function escapeHTML(value) {
+		return String(value).replace(/[&<>"']/g, (ch) => ({
+			"&": "&amp;",
+			"<": "&lt;",
+			">": "&gt;",
+			'"': "&quot;",
+			"'": "&#39;",
+		})[ch]);
+	}
+
 	async function startP2PPush(input) {
 		cancelP2P(false);
 
@@ -578,66 +653,121 @@
 		const shareUrl = buildP2PUrl(sessionID);
 		currentResult = { mode: "p2p", key: sessionID, url: shareUrl };
 		$("#resultKey").textContent = t("p2pLinkLabel");
-		$("#resultMeta").textContent = `${shareUrl} · ${t("p2pWaiting")}`;
 		$("#pushResult").classList.remove("hidden");
 		setPushResultActions("p2p");
 
-		const pc = new RTCPeerConnection({ iceServers: p2pIceServers });
-		const dc = pc.createDataChannel("crossshare");
 		p2pState = {
 			role: "sender",
 			sessionID,
-			pc,
-			dc,
+			pc: null,
+			dc: null,
 			input,
 			lastSeq: 0,
 			stopped: false,
 			connected: false,
 			transferDone: false,
 			fallbackStarted: false,
+			attempt: 0,
+			attemptMode: "",
 			connectTimer: null,
+			upgradeTimer: null,
+			slowTimer: null,
+			statusTimer: null,
+			startedAt: Date.now(),
 			pendingCandidates: [],
+			futureCandidates: {},
 		};
 
+		pollP2PMessages("sender");
+		updateP2PStatus("push", t("p2pWaiting"), true, shareUrl);
+		await startP2PSenderAttempt("lan");
+		toast(t("p2pWaiting"), "success");
+	}
+
+	async function startP2PSenderAttempt(mode) {
+		const state = p2pState;
+		if (!state || state.role !== "sender" || state.stopped || state.connected || state.transferDone) return;
+		if (state.attemptMode === mode && state.pc) return;
+
+		const attempt = mode === "lan" ? 1 : 2;
+		state.attempt = attempt;
+		state.attemptMode = mode;
+		state.pendingCandidates = state.futureCandidates[attempt] || [];
+		delete state.futureCandidates[attempt];
+		clearP2PTimers(state);
+		closeP2PConnection(state);
+		updateP2PStatus("push", mode === "lan" ? t("p2pLanCheck") : t("p2pInternetCheck"), true, currentResult.url);
+
+		const pc = new RTCPeerConnection({ iceServers: mode === "lan" ? [] : p2pIceServers });
+		const dc = pc.createDataChannel("crossshare");
+		state.pc = pc;
+		state.dc = dc;
+
 		pc.onicecandidate = (event) => {
-			if (event.candidate) {
-				postP2PMessage(sessionID, "sender", "receiver", "candidate", event.candidate.toJSON()).catch(() => {});
+			if (event.candidate && p2pState === state && state.attempt === attempt) {
+				postP2PMessage(state.sessionID, "sender", "receiver", "candidate", packP2PSignal(attempt, mode, event.candidate.toJSON())).catch(() => {});
 			}
 		};
 		pc.onconnectionstatechange = () => {
-			if (!p2pState || p2pState.sessionID !== sessionID) return;
+			if (p2pState !== state || state.attempt !== attempt || state.transferDone) return;
 			if (pc.connectionState === "connected") {
-				p2pState.connected = true;
-				$("#resultMeta").textContent = `${shareUrl} · ${t("p2pConnected")}`;
+				state.connected = true;
+				clearP2PTimers(state);
+				updateP2PStatus("push", t("p2pConnected"), true, currentResult.url);
 			}
 			if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+				if (!state.connected && mode === "lan") {
+					startP2PSenderAttempt("stun").catch(() => markP2PFailed());
+					return;
+				}
 				markP2PFailed();
 			}
 		};
-		dc.onopen = () => sendP2PContent(input).catch((e) => {
-			toast(t("reqFail") + ": " + e.message, "error");
-			markP2PFailed();
-		});
-		dc.onerror = () => markP2PFailed();
+		dc.onopen = () => {
+			if (p2pState !== state || state.attempt !== attempt) return;
+			sendP2PContent(state.input).catch((e) => {
+				toast(t("reqFail") + ": " + e.message, "error");
+				markP2PFailed();
+			});
+		};
+		dc.onerror = () => {
+			if (p2pState === state && state.attempt === attempt) markP2PFailed();
+		};
 
 		const offer = await pc.createOffer();
 		await pc.setLocalDescription(offer);
-		await postP2PMessage(sessionID, "sender", "receiver", "offer", describeSession(pc.localDescription));
-		pollP2PMessages("sender");
+		await postP2PMessage(state.sessionID, "sender", "receiver", "offer", packP2PSignal(attempt, mode, describeSession(pc.localDescription)));
+	}
 
-		p2pState.connectTimer = setTimeout(() => {
-			if (p2pState && p2pState.sessionID === sessionID && !p2pState.connected) {
+	function armP2PConnectTimers(attempt) {
+		const state = p2pState;
+		if (!state || state.role !== "sender" || state.connected || state.transferDone) return;
+		clearP2PTimers(state);
+
+		if (attempt === 1) {
+			state.upgradeTimer = setTimeout(() => {
+				if (p2pState === state && !state.connected) {
+					startP2PSenderAttempt("stun").catch(() => markP2PFailed());
+				}
+			}, p2pLanFallbackDelay);
+		}
+		state.slowTimer = setTimeout(() => {
+			if (p2pState === state && !state.connected) {
+				updateP2PStatus("push", t("p2pSlow"), true, currentResult.url);
+			}
+		}, p2pSlowNoticeDelay);
+		state.connectTimer = setTimeout(() => {
+			if (p2pState === state && !state.connected) {
 				markP2PFailed();
 			}
 		}, p2pConnectTimeout);
-		toast(t("p2pWaiting"), "success");
 	}
 
 	async function sendP2PContent(input) {
 		if (!p2pState || !p2pState.dc || p2pState.stopped) return;
 
 		const dc = p2pState.dc;
-		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pSending")}`;
+		updateP2PStatus("push", t("p2pSending"), true, currentResult.url);
 		dc.send(JSON.stringify({
 			kind: "meta",
 			type: input.type,
@@ -658,7 +788,7 @@
 		dc.send(JSON.stringify({ kind: "done" }));
 		p2pState.transferDone = true;
 		p2pState.stopped = true;
-		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pSent")}`;
+		updateP2PStatus("push", t("p2pSent"), false, currentResult.url);
 		toast(t("p2pSent"), "success");
 	}
 
@@ -677,7 +807,7 @@
 
 	function markP2PFailed() {
 		if (!p2pState || p2pState.transferDone) return;
-		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pFailed")}`;
+		updateP2PStatus("push", t("p2pFailed"), false, currentResult.url);
 		fallbackP2PToServer();
 	}
 
@@ -687,7 +817,7 @@
 		state.fallbackStarted = true;
 		stopP2PTransport(state);
 		state.stopped = true;
-		$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pFallback")}`;
+		updateP2PStatus("push", t("p2pFallback"), true, currentResult.url);
 
 		try {
 			const result = await uploadToServer(state.input);
@@ -699,15 +829,45 @@
 			toast(t("pushOk"), "success");
 		} catch (e) {
 			state.fallbackStarted = false;
-			$("#resultMeta").textContent = `${currentResult.url} · ${t("p2pFailed")}`;
+			updateP2PStatus("push", t("p2pFailed"), false, currentResult.url);
 			toast(`${t("pushFail")}: ${e.message}`, "error");
 		}
 	}
 
-	function stopP2PTransport(state) {
+	function closeP2PConnection(state) {
+		if (state.dc) {
+			state.dc.onopen = null;
+			state.dc.onerror = null;
+			state.dc.close();
+			state.dc = null;
+		}
+		if (state.pc) {
+			state.pc.onicecandidate = null;
+			state.pc.onconnectionstatechange = null;
+			state.pc.ondatachannel = null;
+			state.pc.close();
+			state.pc = null;
+		}
+	}
+
+	function clearP2PTimers(state) {
 		if (state.connectTimer) clearTimeout(state.connectTimer);
-		if (state.dc) state.dc.close();
-		if (state.pc) state.pc.close();
+		if (state.upgradeTimer) clearTimeout(state.upgradeTimer);
+		if (state.slowTimer) clearTimeout(state.slowTimer);
+		state.connectTimer = null;
+		state.upgradeTimer = null;
+		state.slowTimer = null;
+	}
+
+	function stopP2PStatusTimer(state) {
+		if (state.statusTimer) clearInterval(state.statusTimer);
+		state.statusTimer = null;
+	}
+
+	function stopP2PTransport(state) {
+		clearP2PTimers(state);
+		stopP2PStatusTimer(state);
+		closeP2PConnection(state);
 	}
 
 	function cancelP2P(showToast) {
@@ -753,6 +913,7 @@
 					apiUrl(`/p2p/sessions/${sessionID}/messages?to=${role}&after=${after}&wait=${p2pPollWaitSeconds}`),
 					{ headers: authHeaders() },
 				);
+				if (resp.status === 204) return;
 				const data = await resp.json();
 				if (data.code !== 0) {
 					if (p2pState && p2pState.role === "receiver") {
@@ -777,12 +938,13 @@
 	}
 
 	async function handleP2PMessage(msg) {
-		if (!p2pState || !p2pState.pc) return;
-		const pc = p2pState.pc;
+		if (!p2pState) return;
 
 		if (msg.type === "fallback" && p2pState.role === "receiver" && msg.payload?.key) {
-			stopP2PTransport(p2pState);
-			p2pState.stopped = true;
+			const state = p2pState;
+			stopP2PTransport(state);
+			state.stopped = true;
+			p2pState = null;
 			$("#pullKey").value = msg.payload.key;
 			$("#pullMeta").textContent = t("p2pFallback");
 			$("#pullBtn").click();
@@ -790,27 +952,43 @@
 		}
 
 		if (msg.type === "offer" && p2pState.role === "receiver") {
-			$("#pullMeta").textContent = t("p2pConnecting");
-			await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+			const signal = unpackP2PSignal(msg.payload);
+			if (signal.attempt < p2pState.attempt) return;
+			await startP2PReceiverAttempt(signal.attempt, signal.mode);
+			const pc = p2pState.pc;
+			updateP2PStatus("pull", t("p2pSignalExchange"), true, "");
+			await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
 			await flushP2PCandidates();
 			const answer = await pc.createAnswer();
 			await pc.setLocalDescription(answer);
-			await postP2PMessage(p2pState.sessionID, "receiver", "sender", "answer", describeSession(pc.localDescription));
+			await postP2PMessage(p2pState.sessionID, "receiver", "sender", "answer", packP2PSignal(p2pState.attempt, p2pState.attemptMode, describeSession(pc.localDescription)));
 			return;
 		}
 
 		if (msg.type === "answer" && p2pState.role === "sender") {
-			await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+			const signal = unpackP2PSignal(msg.payload);
+			if (signal.attempt !== p2pState.attempt || !p2pState.pc) return;
+			updateP2PStatus("push", t("p2pSignalExchange"), true, currentResult.url);
+			await p2pState.pc.setRemoteDescription(new RTCSessionDescription(signal.data));
 			await flushP2PCandidates();
+			armP2PConnectTimers(signal.attempt);
 			return;
 		}
 
 		if (msg.type === "candidate" && msg.payload) {
-			if (!pc.remoteDescription) {
-				p2pState.pendingCandidates.push(msg.payload);
+			const signal = unpackP2PSignal(msg.payload);
+			if (signal.attempt < p2pState.attempt) return;
+			if (signal.attempt > p2pState.attempt) {
+				if (!p2pState.futureCandidates) p2pState.futureCandidates = {};
+				if (!p2pState.futureCandidates[signal.attempt]) p2pState.futureCandidates[signal.attempt] = [];
+				p2pState.futureCandidates[signal.attempt].push(signal.data);
 				return;
 			}
-			await pc.addIceCandidate(new RTCIceCandidate(msg.payload));
+			if (!p2pState.pc || !p2pState.pc.remoteDescription) {
+				p2pState.pendingCandidates.push(signal.data);
+				return;
+			}
+			await p2pState.pc.addIceCandidate(new RTCIceCandidate(signal.data));
 		}
 	}
 
@@ -820,6 +998,21 @@
 		for (const candidate of candidates) {
 			await p2pState.pc.addIceCandidate(new RTCIceCandidate(candidate));
 		}
+	}
+
+	function packP2PSignal(attempt, mode, data) {
+		return { attempt, mode, data };
+	}
+
+	function unpackP2PSignal(payload) {
+		if (payload && typeof payload.attempt === "number" && payload.data) {
+			return {
+				attempt: payload.attempt,
+				mode: payload.mode || "stun",
+				data: payload.data,
+			};
+		}
+		return { attempt: 1, mode: "stun", data: payload };
 	}
 
 	function describeSession(description) {
@@ -872,45 +1065,71 @@
 		cancelP2P(false);
 		$("#pullTextResult").classList.add("hidden");
 		$("#pullFileResult").classList.add("hidden");
-		$("#pullMeta").textContent = t("p2pConnecting");
 		$("#pullResult").classList.remove("hidden");
 
-		const pc = new RTCPeerConnection({ iceServers: p2pIceServers });
 		p2pState = {
 			role: "receiver",
 			sessionID,
-			pc,
+			pc: null,
 			dc: null,
 			lastSeq: 0,
 			stopped: false,
+			connected: false,
+			attempt: 0,
+			attemptMode: "",
+			statusTimer: null,
+			startedAt: Date.now(),
 			receiveMeta: null,
 			receiveChunks: [],
 			receivedSize: 0,
 			pendingCandidates: [],
+			futureCandidates: {},
 		};
 
+		updateP2PStatus("pull", t("p2pSignalExchange"), true, "");
+		pollP2PMessages("receiver");
+	}
+
+	async function startP2PReceiverAttempt(attempt, mode) {
+		const state = p2pState;
+		if (!state || state.role !== "receiver" || state.stopped) return;
+		if (attempt < state.attempt) return;
+		updateP2PStatus("pull", mode === "lan" ? t("p2pLanCheck") : t("p2pInternetCheck"), true, "");
+		if (attempt === state.attempt && state.attemptMode === mode && state.pc) return;
+
+		if (attempt !== state.attempt || state.attemptMode !== mode || !state.pc) {
+			state.attempt = attempt;
+			state.attemptMode = mode;
+			state.pendingCandidates = state.futureCandidates[attempt] || [];
+			delete state.futureCandidates[attempt];
+			closeP2PConnection(state);
+		}
+
+		const pc = new RTCPeerConnection({ iceServers: mode === "lan" ? [] : p2pIceServers });
+		state.pc = pc;
+
 		pc.onicecandidate = (event) => {
-			if (event.candidate) {
-				postP2PMessage(sessionID, "receiver", "sender", "candidate", event.candidate.toJSON()).catch(() => {});
+			if (event.candidate && p2pState === state && state.attempt === attempt) {
+				postP2PMessage(state.sessionID, "receiver", "sender", "candidate", packP2PSignal(attempt, mode, event.candidate.toJSON())).catch(() => {});
 			}
 		};
 		pc.onconnectionstatechange = () => {
-			if (!p2pState || p2pState.sessionID !== sessionID) return;
+			if (p2pState !== state || state.attempt !== attempt) return;
 			if (pc.connectionState === "connected") {
-				$("#pullMeta").textContent = t("p2pConnected");
+				state.connected = true;
+				updateP2PStatus("pull", t("p2pConnected"), true, "");
 			}
 			if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-				showP2PReceiveError(t("p2pSenderOffline"));
+				updateP2PStatus("pull", t("p2pSlow"), true, "");
 			}
 		};
 		pc.ondatachannel = (event) => {
+			if (p2pState !== state || state.attempt !== attempt) return;
 			p2pState.dc = event.channel;
 			p2pState.dc.binaryType = "arraybuffer";
 			p2pState.dc.onmessage = handleP2PDataMessage;
 			p2pState.dc.onerror = () => showP2PReceiveError(t("p2pSenderOffline"));
 		};
-
-		pollP2PMessages("receiver");
 	}
 
 	function handleP2PDataMessage(event) {
@@ -922,7 +1141,7 @@
 				p2pState.receiveMeta = msg;
 				p2pState.receiveChunks = [];
 				p2pState.receivedSize = 0;
-				$("#pullMeta").textContent = `${t("p2pReceiving")} · ${t("metaSize")}: ${humanSize(msg.size || 0)}`;
+				updateP2PStatus("pull", `${t("p2pReceiving")} · ${t("metaSize")}: ${humanSize(msg.size || 0)}`, true, "");
 				return;
 			}
 			if (msg.kind === "done") {
@@ -934,7 +1153,7 @@
 		p2pState.receiveChunks.push(event.data);
 		p2pState.receivedSize += event.data.byteLength;
 		if (p2pState.receiveMeta) {
-			$("#pullMeta").textContent = `${t("p2pReceiving")} · ${humanSize(p2pState.receivedSize)} / ${humanSize(p2pState.receiveMeta.size || 0)}`;
+			updateP2PStatus("pull", `${t("p2pReceiving")} · ${humanSize(p2pState.receivedSize)} / ${humanSize(p2pState.receiveMeta.size || 0)}`, true, "");
 		}
 	}
 
@@ -945,6 +1164,7 @@
 			type: meta.content_type || "application/octet-stream",
 		});
 		p2pState.stopped = true;
+		stopP2PStatusTimer(p2pState);
 
 		if (meta.type === "text") {
 			blob.text().then((text) => {
@@ -970,6 +1190,7 @@
 	}
 
 	function showP2PReceiveError(message) {
+		if (p2pState) stopP2PStatusTimer(p2pState);
 		$("#pullTextResult").classList.add("hidden");
 		$("#pullFileResult").classList.add("hidden");
 		$("#pullMeta").textContent = message;
