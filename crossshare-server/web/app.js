@@ -55,6 +55,7 @@
 			p2pConnected: "直连已建立",
 			p2pSending: "直连传输中",
 			p2pSent: "直连传输完成",
+			p2pNotStored: "直连传输完成，未存服务器",
 			p2pReceiving: "正在接收直连内容",
 			p2pDone: "直连接收完成",
 			p2pFailed: "直连失败",
@@ -129,6 +130,7 @@
 			p2pConnected: "Direct connection established",
 			p2pSending: "Direct transfer in progress",
 			p2pSent: "Direct transfer complete",
+			p2pNotStored: "Direct transfer complete, not stored on server",
 			p2pReceiving: "Receiving direct content",
 			p2pDone: "Direct receive complete",
 			p2pFailed: "Direct transfer failed",
@@ -665,6 +667,7 @@
 			lastSeq: 0,
 			stopped: false,
 			connected: false,
+			transferStarted: false,
 			transferDone: false,
 			fallbackStarted: false,
 			attempt: 0,
@@ -725,6 +728,9 @@
 		};
 		dc.onopen = () => {
 			if (p2pState !== state || state.attempt !== attempt) return;
+			state.connected = true;
+			clearP2PTimers(state);
+			updateP2PStatus("push", t("p2pConnected"), true, currentResult.url);
 			sendP2PContent(state.input).catch((e) => {
 				toast(t("reqFail") + ": " + e.message, "error");
 				markP2PFailed();
@@ -766,7 +772,11 @@
 	async function sendP2PContent(input) {
 		if (!p2pState || !p2pState.dc || p2pState.stopped) return;
 
+		const state = p2pState;
 		const dc = p2pState.dc;
+		state.connected = true;
+		state.transferStarted = true;
+		clearP2PTimers(state);
 		updateP2PStatus("push", t("p2pSending"), true, currentResult.url);
 		dc.send(JSON.stringify({
 			kind: "meta",
@@ -786,9 +796,10 @@
 		}
 
 		dc.send(JSON.stringify({ kind: "done" }));
-		p2pState.transferDone = true;
-		p2pState.stopped = true;
-		updateP2PStatus("push", t("p2pSent"), false, currentResult.url);
+		state.transferDone = true;
+		state.stopped = true;
+		setPushResultActions("p2pDone");
+		updateP2PStatus("push", t("p2pNotStored"), false, currentResult.url);
 		toast(t("p2pSent"), "success");
 	}
 
@@ -808,12 +819,16 @@
 	function markP2PFailed() {
 		if (!p2pState || p2pState.transferDone) return;
 		updateP2PStatus("push", t("p2pFailed"), false, currentResult.url);
+		if (p2pState.transferStarted || p2pState.connected) {
+			toast(t("p2pFailed"), "error");
+			return;
+		}
 		fallbackP2PToServer();
 	}
 
 	async function fallbackP2PToServer() {
 		const state = p2pState;
-		if (!state || state.role !== "sender" || !state.input || state.transferDone || state.fallbackStarted) return;
+		if (!state || state.role !== "sender" || !state.input || state.transferStarted || state.transferDone || state.fallbackStarted) return;
 		state.fallbackStarted = true;
 		stopP2PTransport(state);
 		state.stopped = true;
