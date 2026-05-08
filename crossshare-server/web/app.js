@@ -28,6 +28,7 @@
 			close: "关闭",
 			cancel: "取消",
 			saveToServer: "存到服务器",
+			cleanup: "清理",
 			enterKey: "输入 Key",
 			deleteAfterPull: "拉取后删除",
 			textContent: "文本内容",
@@ -105,6 +106,7 @@
 			close: "Close",
 			cancel: "Cancel",
 			saveToServer: "Save to Server",
+			cleanup: "Clean",
 			enterKey: "Enter Key",
 			deleteAfterPull: "Delete after pull",
 			textContent: "Text Content",
@@ -289,6 +291,14 @@
 	applyI18n();
 	// ── Auto-pull from URL ?key= ──────────────────────────────
 
+	function setRadarMode(tabName) {
+		const stage = $(".radar-stage");
+		if (!stage) return;
+		const isPull = tabName === "pull";
+		stage.classList.toggle("radar-push", !isPull);
+		stage.classList.toggle("radar-pull", isPull);
+	}
+
 	(function autoPullFromURL() {
 		const params = new URLSearchParams(window.location.search);
 		const p2pSession = params.get("p2p");
@@ -304,6 +314,7 @@
 		$$(".tab-content").forEach((c) => c.classList.remove("active"));
 		$('.tab[data-tab="pull"]').classList.add("active");
 		$("#pullTab").classList.add("active");
+		setRadarMode("pull");
 
 		if (p2pSession) {
 			setTimeout(() => startP2PReceive(p2pSession), 0);
@@ -371,6 +382,7 @@
 			$$(".tab-content").forEach((c) => c.classList.remove("active"));
 			tab.classList.add("active");
 			$(`#${tab.dataset.tab}Tab`).classList.add("active");
+			setRadarMode(tab.dataset.tab);
 		});
 	});
 
@@ -582,6 +594,7 @@
 		$("#copyKey").classList.toggle("hidden", mode !== "server");
 		$("#copyLink").classList.toggle("hidden", !mode);
 		$("#showQr").classList.toggle("hidden", !mode);
+		$("#cleanupServerPush").classList.toggle("hidden", mode !== "server");
 		$("#saveToServer").classList.toggle("hidden", mode !== "p2p");
 		$("#cancelP2p").classList.toggle("hidden", mode !== "p2p");
 	}
@@ -1075,6 +1088,32 @@
 
 		$("#qrLink").textContent = shareUrl;
 		$("#qrModal").classList.remove("hidden");
+	});
+
+	$("#cleanupServerPush").addEventListener("click", async () => {
+		if (currentResult.mode !== "server" || !currentResult.key) return;
+
+		const btn = $("#cleanupServerPush");
+		btn.disabled = true;
+
+		try {
+			const resp = await fetch(apiUrl("/pull/" + currentResult.key), {
+				method: "DELETE",
+				headers: authHeaders(),
+			});
+			const data = await resp.json();
+			if (data.code !== 0) {
+				toast(`${t("deleteFail")}: ${data.msg}`, "error");
+				return;
+			}
+
+			clearPushResult();
+			toast(t("deleteOk"), "success");
+		} catch (e) {
+			toast(t("reqFail") + ": " + e.message, "error");
+		} finally {
+			btn.disabled = false;
+		}
 	});
 
 	function closeQrModal() {
