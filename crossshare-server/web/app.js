@@ -297,6 +297,8 @@
 	let p2pState = null;
 	let interactionMode = localStorage.getItem("cs_interaction") || "modern";
 	let paperOpen = false;
+	let modernSendTimer = null;
+	let pendingPaperFoldAfterSend = false;
 
 	const p2pIceServers = [
 		{ urls: "stun:stun.l.google.com:19302" },
@@ -584,21 +586,33 @@
 	function triggerModernSendAnimation(type) {
 		if (interactionMode !== "modern") return;
 		const target = type === "text" ? $("#textMode") : $("#fileMode");
+		if (modernSendTimer) {
+			clearTimeout(modernSendTimer);
+			modernSendTimer = null;
+		}
+		if (type === "text") pendingPaperFoldAfterSend = false;
 		target.classList.remove("modern-sending");
 		void target.offsetWidth;
 		target.classList.add("modern-sending");
-		setTimeout(() => target.classList.remove("modern-sending"), 900);
+		modernSendTimer = setTimeout(() => {
+			if (type === "text" && pendingPaperFoldAfterSend && paperOpen) {
+				setPaperOpen(false, false);
+			}
+			if (type === "text") pendingPaperFoldAfterSend = false;
+			target.classList.remove("modern-sending");
+			modernSendTimer = null;
+		}, 900);
 	}
 
 	function foldPaperAfterPush(input) {
 		if (interactionMode !== "modern" || input?.type !== "text" || !paperOpen) return;
 		const textMode = $("#textMode");
-		const delay = textMode.classList.contains("modern-sending") ? 920 : 0;
-		setTimeout(() => {
-			if (interactionMode === "modern" && paperOpen) {
-				setPaperOpen(false, false);
-			}
-		}, delay);
+		if (textMode.classList.contains("modern-sending")) {
+			// 发送动画还在收尾时，先记下收起动作，避免先展开再折叠。
+			pendingPaperFoldAfterSend = true;
+			return;
+		}
+		setPaperOpen(false, false);
 	}
 
 	$$(".interaction").forEach((btn) => {
@@ -904,6 +918,7 @@
 		updateP2PStatus("push", t("p2pWaiting"), true, shareUrl);
 		await startP2PSenderAttempt("lan");
 		toast(t("p2pWaiting"), "success");
+		foldPaperAfterPush(input);
 	}
 
 	async function startP2PSenderAttempt(mode) {
