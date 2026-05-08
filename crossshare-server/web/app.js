@@ -1049,7 +1049,10 @@
 		const canvas = $("#qrCanvas");
 
 		try {
-			window.CrossShareQR.render(canvas, shareUrl, { size: 260 });
+			window.CrossShareQR.render(canvas, shareUrl, {
+				size: 300,
+				errorCorrectionLevel: "M",
+			});
 		} catch (e) {
 			toast(t("qrFail") + ": " + e.message, "error");
 			return;
