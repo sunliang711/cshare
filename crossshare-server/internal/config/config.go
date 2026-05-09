@@ -44,7 +44,8 @@ type BusinessConfig struct {
 	DefaultTTL      int   `mapstructure:"default_ttl" yaml:"default_ttl"`
 	MaxTTL          int   `mapstructure:"max_ttl" yaml:"max_ttl"`
 	TextJSONLimit   int64 `mapstructure:"text_json_limit" yaml:"text_json_limit"`
-	BinaryPushLimit int64 `mapstructure:"binary_push_limit" yaml:"binary_push_limit"`
+	FilesPushLimit  int64 `mapstructure:"files_push_limit" yaml:"files_push_limit"`
+	MaxFilesPerPush int   `mapstructure:"max_files_per_push" yaml:"max_files_per_push"`
 }
 
 type RateLimitConfig struct {
@@ -73,7 +74,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("business.default_ttl", 600)
 	v.SetDefault("business.max_ttl", 86400) // 24 hours
 	v.SetDefault("business.text_json_limit", 1<<20)
-	v.SetDefault("business.binary_push_limit", 20<<20)
+	v.SetDefault("business.files_push_limit", 20<<20)
+	v.SetDefault("business.max_files_per_push", 20)
 	v.SetDefault("ratelimit.enable", true)
 	v.SetDefault("ratelimit.requests_per_minute", 20)
 	v.SetDefault("cors.allow_origins", []string{"*"})

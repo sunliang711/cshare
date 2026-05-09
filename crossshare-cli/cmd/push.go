@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,9 +15,10 @@ import (
 )
 
 var (
-	pushFile        string
+	pushFileMode    bool
 	pushTTL         int
 	pushFilename    string
+	pushName        string
 	pushContentType string
 )
 
@@ -30,23 +33,34 @@ Examples:
   share push                                 # read text from stdin
   echo "piped" | share push                  # pipe text from stdin
   share push -f ./report.pdf                 # push a file
+  share push -f ./a.txt ./b.jpg              # push multiple files
   share push -f ./notes.txt --filename a.txt # push file with custom name`,
-	Args: cobra.MaximumNArgs(1),
+	Args: cobra.ArbitraryArgs,
 	Run:  runPush,
 }
 
 func init() {
-	pushCmd.Flags().StringVarP(&pushFile, "file", "f", "", "file path to upload")
+	pushCmd.Flags().BoolVarP(&pushFileMode, "file", "f", false, "push file paths instead of text")
 	pushCmd.Flags().IntVar(&pushTTL, "ttl", 0, "TTL in seconds (default: server default)")
 	pushCmd.Flags().StringVar(&pushFilename, "filename", "", "custom filename")
+	pushCmd.Flags().StringVar(&pushName, "name", "", "custom bundle filename")
 	pushCmd.Flags().StringVar(&pushContentType, "content-type", "", "custom content type")
 	rootCmd.AddCommand(pushCmd)
 }
 
 func runPush(cmd *cobra.Command, args []string) {
-	if pushFile != "" {
-		pushBinaryFile()
+	if pushFileMode {
+		if len(args) == 0 {
+			fmt.Fprintln(os.Stderr, "Error: missing file path")
+			os.Exit(1)
+		}
+		pushFilesContent(args)
 		return
+	}
+
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, "Error: text push accepts at most one argument")
+		os.Exit(1)
 	}
 
 	var text string
@@ -94,32 +108,67 @@ func pushTextContent(text string) {
 	printPushResult(resp.Data)
 }
 
-func pushBinaryFile() {
-	data, filename, err := readFileData(pushFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+func pushFilesContent(files []string) {
+	if len(files) > 1 && pushFilename != "" {
+		fmt.Fprintln(os.Stderr, "Error: --filename can only be used with one file")
 		os.Exit(1)
 	}
 
-	if pushFilename != "" {
-		filename = pushFilename
-	}
-
 	c := newClient()
-	headers := map[string]string{
-		"Content-Type": "application/octet-stream",
-	}
-	if filename != "" {
-		headers["Filename"] = filename
-	}
-	if pushTTL > 0 {
-		headers["X-TTL"] = strconv.Itoa(pushTTL)
-	}
-	if pushContentType != "" {
-		headers["X-Content-Type"] = pushContentType
+	body := bytes.NewBuffer(nil)
+	writer := multipart.NewWriter(body)
+
+	for _, path := range files {
+		data, filename, err := readFileData(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if pushFilename != "" {
+			filename = pushFilename
+		}
+
+		header := make(textproto.MIMEHeader)
+		header.Set("Content-Disposition", multipart.FileContentDisposition("files", filename))
+		if pushContentType != "" && len(files) == 1 {
+			header.Set("Content-Type", pushContentType)
+		} else {
+			header.Set("Content-Type", "application/octet-stream")
+		}
+
+		part, err := writer.CreatePart(header)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating multipart part: %v\n", err)
+			os.Exit(1)
+		}
+		if _, err := part.Write(data); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing multipart body: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	resp, err := c.doRaw("POST", "/push/binary", bytes.NewReader(data), headers)
+	if pushTTL > 0 {
+		if err := writer.WriteField("ttl", strconv.Itoa(pushTTL)); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing ttl: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	if pushName != "" {
+		if err := writer.WriteField("name", pushName); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing name: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error closing multipart body: %v\n", err)
+		os.Exit(1)
+	}
+
+	headers := map[string]string{
+		"Content-Type": writer.FormDataContentType(),
+	}
+
+	resp, err := c.doRaw("POST", "/push/files", body, headers)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -161,12 +210,18 @@ func readFileData(path string) ([]byte, string, error) {
 
 func printPushResult(data json.RawMessage) {
 	var result struct {
-		Key      string `json:"key"`
-		TTL      int    `json:"ttl"`
-		Size     int    `json:"size"`
-		Type     string `json:"type"`
-		Filename string `json:"filename"`
-		ExpireAt int64  `json:"expire_at"`
+		Key        string `json:"key"`
+		TTL        int    `json:"ttl"`
+		Size       int    `json:"size"`
+		StoredSize int    `json:"stored_size"`
+		Type       string `json:"type"`
+		Filename   string `json:"filename"`
+		FileCount  int    `json:"file_count"`
+		ExpireAt   int64  `json:"expire_at"`
+		Files      []struct {
+			Name string `json:"name"`
+			Size int    `json:"size"`
+		} `json:"files"`
 	}
 	json.Unmarshal(data, &result)
 
@@ -176,6 +231,17 @@ func printPushResult(data json.RawMessage) {
 	fmt.Printf("TTL:      %s\n", humanDuration(result.TTL))
 	if result.Filename != "" {
 		fmt.Printf("Filename: %s\n", result.Filename)
+	}
+	if result.FileCount > 0 {
+		fmt.Printf("Files:    %d\n", result.FileCount)
+	}
+	if result.StoredSize > 0 && result.StoredSize != result.Size {
+		fmt.Printf("Stored:   %s\n", humanSize(int64(result.StoredSize)))
+	}
+	if len(result.Files) > 1 {
+		for _, file := range result.Files {
+			fmt.Printf("  - %s (%s)\n", file.Name, humanSize(int64(file.Size)))
+		}
 	}
 }
 

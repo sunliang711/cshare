@@ -8,12 +8,15 @@ type Response struct {
 }
 
 type PushResult struct {
-	Key      string `json:"key"`
-	TTL      int    `json:"ttl"`
-	Size     int    `json:"size"`
-	Type     string `json:"type"`
-	Filename string `json:"filename,omitempty"`
-	ExpireAt int64  `json:"expire_at"`
+	Key        string      `json:"key"`
+	TTL        int         `json:"ttl"`
+	Size       int         `json:"size"`
+	StoredSize int         `json:"stored_size,omitempty"`
+	Type       string      `json:"type"`
+	Filename   string      `json:"filename,omitempty"`
+	FileCount  int         `json:"file_count,omitempty"`
+	Files      []ShareFile `json:"files,omitempty"`
+	ExpireAt   int64       `json:"expire_at"`
 }
 
 type PullTextResult struct {
@@ -23,6 +26,17 @@ type PullTextResult struct {
 	ContentType string `json:"content_type"`
 	Size        int    `json:"size"`
 	Deleted     bool   `json:"deleted"`
+}
+
+type PullFilesResult struct {
+	Key         string      `json:"key"`
+	Filename    string      `json:"filename"`
+	ContentType string      `json:"content_type"`
+	Size        int         `json:"size"`
+	StoredSize  int         `json:"stored_size"`
+	FileCount   int         `json:"file_count"`
+	Files       []ShareFile `json:"files"`
+	Deleted     bool        `json:"deleted"`
 }
 
 type DeleteResult struct {

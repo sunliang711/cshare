@@ -2280,6 +2280,46 @@ body {
 		transform 0.18s ease;
 }
 
+.package-file-stack {
+	position: absolute;
+	left: 50%;
+	bottom: 3.125rem;
+	width: 6.4rem;
+	height: 6.8rem;
+	z-index: 3;
+	opacity: 0;
+	transform: translateX(-50%) translateY(1.25rem);
+	transition:
+		opacity 0.18s ease,
+		transform 0.18s ease;
+}
+
+.package-file-stack .package-file {
+	left: 50%;
+	bottom: 0;
+}
+
+.package-file-main {
+	z-index: 5;
+}
+
+.package-file-back {
+	z-index: 3;
+	opacity: 0;
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+		0 0.375rem 0.75rem rgba(33, 48, 72, 0.1);
+}
+
+.package-file-back-1 {
+	transform: translateX(-50%) translate(-0.5rem, 0.45rem) rotate(-7deg);
+}
+
+.package-file-back-2 {
+	z-index: 2;
+	transform: translateX(-50%) translate(0.55rem, 0.85rem) rotate(8deg);
+}
+
 .package-file::before,
 .package-file::after {
 	content: "";
@@ -2356,6 +2396,39 @@ body {
 [data-interaction="modern"] .drop-zone.has-file .package-file {
 	opacity: 1;
 	transform: translateX(-50%) translateY(0.35rem);
+}
+
+[data-interaction="modern"] .drop-zone.dragover .package-file-stack {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0.5rem) scale(0.96);
+}
+
+[data-interaction="modern"] .drop-zone.dragover .package-file-back {
+	opacity: 0;
+}
+
+[data-interaction="modern"] .drop-zone.has-file .package-file-stack {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0.35rem);
+}
+
+[data-interaction="modern"] .drop-zone.has-file .package-file-stack .package-file {
+	opacity: 1;
+	transform: translateX(-50%);
+}
+
+[data-interaction="modern"] .drop-zone.has-file .package-file-back {
+	opacity: 0;
+}
+
+[data-interaction="modern"] .drop-zone.has-file.has-multiple-files .package-file-back-1 {
+	opacity: 0.92;
+	transform: translateX(-50%) translate(-0.5rem, 0.45rem) rotate(-7deg);
+}
+
+[data-interaction="modern"] .drop-zone.has-file.has-multiple-files .package-file-back-2 {
+	opacity: 0.72;
+	transform: translateX(-50%) translate(0.55rem, 0.85rem) rotate(8deg);
 }
 
 [data-interaction="modern"] .drop-zone.has-file .package-file::before,

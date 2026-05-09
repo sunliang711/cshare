@@ -88,7 +88,8 @@ CI 推送 `server/v*` 标签时自动构建多架构镜像（linux/amd64, linux/
 | `business.default_ttl` | `600` | 默认过期时间（秒） |
 | `business.max_ttl` | `2592000` | 最大 TTL（30 天） |
 | `business.text_json_limit` | `1048576` | 文本大小上限（1 MB） |
-| `business.binary_push_limit` | `20971520` | 文件大小上限（20 MB） |
+| `business.files_push_limit` | `20971520` | 文件总大小上限（20 MB） |
+| `business.max_files_per_push` | `20` | 单次推送文件数量上限 |
 | `ratelimit.enable` | `true` | 是否启用限流 |
 | `ratelimit.requests_per_minute` | `60` | 每 IP 每分钟请求数 |
 | `redis.addr` | `localhost:6379` | Redis 地址 |
@@ -101,7 +102,7 @@ CI 推送 `server/v*` 标签时自动构建多架构镜像（linux/amd64, linux/
 |------|------|------|
 | GET | `/api/v1/health` | 健康检查 |
 | POST | `/api/v1/push/text` | 推送文本（JSON） |
-| POST | `/api/v1/push/binary` | 推送文件（流式） |
+| POST | `/api/v1/push/files` | 推送一个或多个文件（multipart） |
 | POST | `/api/v1/push` | 统一推送（按 Content-Type 自动分发） |
 | GET | `/api/v1/pull/:key` | 拉取内容 |
 | DELETE | `/api/v1/pull/:key` | 删除内容 |
@@ -154,6 +155,9 @@ echo "piped content" | share push -
 
 # 推送文件
 share push -f ./report.pdf
+
+# 推送多个文件
+share push -f ./a.txt -f ./b.jpg
 
 # 拉取内容
 share pull A8k2dP

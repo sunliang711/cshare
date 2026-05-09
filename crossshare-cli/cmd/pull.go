@@ -68,16 +68,20 @@ func pullAsJSON(c *Client, key string) {
 	}
 
 	var data struct {
-		Key         string `json:"key"`
-		Text        string `json:"text"`
-		Filename    string `json:"filename"`
-		ContentType string `json:"content_type"`
-		Size        int    `json:"size"`
-		Deleted     bool   `json:"deleted"`
+		Key        string `json:"key"`
+		Text       string `json:"text"`
+		Filename   string `json:"filename"`
+		Size       int    `json:"size"`
+		FileCount  int    `json:"file_count"`
+		StoredSize int    `json:"stored_size"`
+		Deleted    bool   `json:"deleted"`
 	}
 	json.Unmarshal(resp.Data, &data)
 
-	if pullOutput != "" {
+	if data.Text == "" && data.FileCount > 0 {
+		out, _ := json.MarshalIndent(data, "", "  ")
+		fmt.Println(string(out))
+	} else if pullOutput != "" {
 		if err := os.WriteFile(pullOutput, []byte(data.Text), 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
 			os.Exit(1)
@@ -121,7 +125,7 @@ func pullAsStream(c *Client, key string) {
 	deleted := resp.Header.Get("Key-Deleted") == "true"
 
 	output := pullOutput
-	if output == "" && shareType == "File" && filename != "" {
+	if output == "" && (shareType == "File" || shareType == "Bundle") && filename != "" {
 		output = filename
 	}
 

@@ -39,6 +39,9 @@ echo "piped content" | share push -
 # 推送文件
 share push -f ./report.pdf
 
+# 推送多个文件
+share push -f ./a.txt ./b.jpg
+
 # 推送文件并指定文件名和 TTL
 share push -f ./notes.txt --filename custom.txt --ttl 86400
 
@@ -49,10 +52,11 @@ share push -f ./data.json --content-type application/json
 | 参数 | 说明 |
 |------|------|
 | `[text]` | 要推送的文本内容，`-` 表示从 stdin 读取 |
-| `-f, --file` | 上传文件路径 |
+| `-f, --file` | 文件模式，后续参数作为文件路径 |
 | `--ttl` | 过期时间（秒），默认由服务端决定 |
-| `--filename` | 自定义文件名 |
-| `--content-type` | 自定义 MIME 类型 |
+| `--filename` | 单文件自定义文件名 |
+| `--name` | 多文件包下载文件名 |
+| `--content-type` | 单文件自定义 MIME 类型 |
 
 ### pull — 拉取内容
 
@@ -89,6 +93,6 @@ share delete A8k2dP
 |--------|----------|----------|
 | `health` | GET | `/api/v1/health` |
 | `push` (文本) | POST | `/api/v1/push/text` |
-| `push -f` (文件) | POST | `/api/v1/push/binary` |
+| `push -f` (文件) | POST | `/api/v1/push/files` |
 | `pull` | GET | `/api/v1/pull/:key` |
 | `delete` | DELETE | `/api/v1/pull/:key` |

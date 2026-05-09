@@ -59,6 +59,7 @@ func New(p Params) *http.Server {
 		{
 			push.POST("/text", p.PushHandler.PushText)
 			push.POST("/binary", p.PushHandler.PushBinary)
+			push.POST("/files", p.PushHandler.PushFiles)
 			push.POST("", p.PushHandler.PushUnified)
 		}
 

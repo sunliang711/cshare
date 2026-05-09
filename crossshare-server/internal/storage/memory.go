@@ -75,6 +75,7 @@ func (s *MemoryStorage) Save(_ context.Context, share *model.Share, ttl time.Dur
 
 	copied := *share
 	copied.Content = append([]byte(nil), share.Content...)
+	copied.Files = append([]model.ShareFile(nil), share.Files...)
 
 	s.items[share.Key] = &memEntry{
 		share:    &copied,
@@ -94,6 +95,7 @@ func (s *MemoryStorage) Get(_ context.Context, key string) (*model.Share, error)
 
 	copied := *entry.share
 	copied.Content = append([]byte(nil), entry.share.Content...)
+	copied.Files = append([]model.ShareFile(nil), entry.share.Files...)
 	return &copied, nil
 }
 

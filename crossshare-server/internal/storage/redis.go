@@ -57,15 +57,17 @@ func NewRedisStorage(lc fx.Lifecycle, cfg *config.Config, logger zerolog.Logger)
 }
 
 type shareMeta struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	ContentType string `json:"content_type"`
-	ContentSize int    `json:"content_size"`
-	Hash        string `json:"hash"`
-	CreatedAt   int64  `json:"created_at"`
-	ExpireAt    int64  `json:"expire_at"`
-	Creator     string `json:"creator"`
-	Type        string `json:"type"`
+	Key         string            `json:"key"`
+	Name        string            `json:"name"`
+	ContentType string            `json:"content_type"`
+	ContentSize int               `json:"content_size"`
+	StoredSize  int               `json:"stored_size"`
+	Hash        string            `json:"hash"`
+	CreatedAt   int64             `json:"created_at"`
+	ExpireAt    int64             `json:"expire_at"`
+	Creator     string            `json:"creator"`
+	Type        string            `json:"type"`
+	Files       []model.ShareFile `json:"files,omitempty"`
 }
 
 func redisKey(key string) string {
@@ -78,11 +80,13 @@ func (s *RedisStorage) Save(ctx context.Context, share *model.Share, ttl time.Du
 		Name:        share.Name,
 		ContentType: share.ContentType,
 		ContentSize: share.ContentSize,
+		StoredSize:  share.StoredSize,
 		Hash:        share.Hash,
 		CreatedAt:   share.CreatedAt,
 		ExpireAt:    share.ExpireAt,
 		Creator:     share.Creator,
 		Type:        share.Type,
+		Files:       share.Files,
 	}
 	metaBytes, err := json.Marshal(meta)
 	if err != nil {
@@ -118,11 +122,13 @@ func (s *RedisStorage) Get(ctx context.Context, key string) (*model.Share, error
 		Content:     []byte(result["data"]),
 		ContentType: meta.ContentType,
 		ContentSize: meta.ContentSize,
+		StoredSize:  meta.StoredSize,
 		Hash:        meta.Hash,
 		CreatedAt:   meta.CreatedAt,
 		ExpireAt:    meta.ExpireAt,
 		Creator:     meta.Creator,
 		Type:        meta.Type,
+		Files:       meta.Files,
 	}, nil
 }
 

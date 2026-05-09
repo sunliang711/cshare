@@ -1,11 +1,14 @@
 package tests
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,7 +53,8 @@ func defaultConfig() *config.Config {
 			DefaultTTL:      300,
 			MaxTTL:          2592000,
 			TextJSONLimit:   1 << 20,
-			BinaryPushLimit: 20 << 20,
+			FilesPushLimit:  20 << 20,
+			MaxFilesPerPush: 20,
 		},
 		RateLimit: config.RateLimitConfig{Enable: false},
 		CORS: config.CORSConfig{
@@ -114,6 +118,7 @@ func setupRouter(t *testing.T, opts ...func(*config.Config)) *gin.Engine {
 		{
 			push.POST("/text", pushH.PushText)
 			push.POST("/binary", pushH.PushBinary)
+			push.POST("/files", pushH.PushFiles)
 			push.POST("", pushH.PushUnified)
 		}
 
@@ -172,6 +177,31 @@ func pushBinaryHelper(t *testing.T, r *gin.Engine, data []byte, filename string)
 		headers["Filename"] = filename
 	}
 	w := doRequest(r, "POST", "/api/v1/push/binary", bytes.NewReader(data), headers)
+	require.Equal(t, http.StatusOK, w.Code)
+	resp := parseResponse(t, w)
+	var result struct {
+		Key string `json:"key"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Data, &result))
+	require.NotEmpty(t, result.Key)
+	return result.Key
+}
+
+func pushFilesHelper(t *testing.T, r *gin.Engine, files map[string][]byte) string {
+	t.Helper()
+	body := bytes.NewBuffer(nil)
+	writer := multipart.NewWriter(body)
+	for name, data := range files {
+		part, err := writer.CreateFormFile("files", name)
+		require.NoError(t, err)
+		_, err = part.Write(data)
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.WriteField("ttl", "300"))
+	require.NoError(t, writer.Close())
+
+	w := doRequest(r, "POST", "/api/v1/push/files", bytes.NewReader(body.Bytes()),
+		map[string]string{"Content-Type": writer.FormDataContentType()})
 	require.Equal(t, http.StatusOK, w.Code)
 	resp := parseResponse(t, w)
 	var result struct {
@@ -352,7 +382,9 @@ func TestPushBinary(t *testing.T) {
 		json.Unmarshal(resp.Data, &result)
 		assert.NotEmpty(t, result.Key)
 		assert.Equal(t, len(data), result.Size)
-		assert.Equal(t, "binary", result.Type)
+		assert.Equal(t, "files", result.Type)
+		assert.Equal(t, 1, result.FileCount)
+		assert.Greater(t, result.StoredSize, 0)
 	})
 
 	t.Run("with filename and custom headers", func(t *testing.T) {
@@ -385,7 +417,7 @@ func TestPushBinary(t *testing.T) {
 
 func TestPushBinary_PayloadTooLarge(t *testing.T) {
 	r := setupRouter(t, func(cfg *config.Config) {
-		cfg.Business.BinaryPushLimit = 100
+		cfg.Business.FilesPushLimit = 100
 	})
 
 	data := make([]byte, 200)
@@ -396,6 +428,83 @@ func TestPushBinary_PayloadTooLarge(t *testing.T) {
 	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 	resp := parseResponse(t, w)
 	assert.Equal(t, 1002, resp.Code)
+}
+
+func TestPushFiles(t *testing.T) {
+	r := setupRouter(t)
+
+	t.Run("single file returns files type and pulls raw content", func(t *testing.T) {
+		key := pushFilesHelper(t, r, map[string][]byte{
+			"single.txt": []byte("single file content"),
+		})
+
+		w := doRequest(r, "GET", "/api/v1/pull/"+key, nil, nil)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "File", w.Header().Get("Crossshare-Type"))
+		assert.Equal(t, "single.txt", w.Header().Get("Crossshare-Filename"))
+		assert.Equal(t, "1", w.Header().Get("Crossshare-File-Count"))
+		assert.Equal(t, "single file content", w.Body.String())
+	})
+
+	t.Run("multiple files pull as zip bundle", func(t *testing.T) {
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("files", "a.txt")
+		require.NoError(t, err)
+		_, err = part.Write([]byte("alpha"))
+		require.NoError(t, err)
+		part, err = writer.CreateFormFile("files", "b.txt")
+		require.NoError(t, err)
+		_, err = part.Write([]byte("bravo"))
+		require.NoError(t, err)
+		require.NoError(t, writer.WriteField("ttl", "600"))
+		require.NoError(t, writer.WriteField("name", "docs"))
+		require.NoError(t, writer.Close())
+
+		w := doRequest(r, "POST", "/api/v1/push/files", bytes.NewReader(body.Bytes()),
+			map[string]string{"Content-Type": writer.FormDataContentType()})
+		require.Equal(t, http.StatusOK, w.Code)
+		resp := parseResponse(t, w)
+		var result model.PushResult
+		require.NoError(t, json.Unmarshal(resp.Data, &result))
+		assert.Equal(t, "files", result.Type)
+		assert.Equal(t, 2, result.FileCount)
+		assert.Equal(t, 10, result.Size)
+		assert.Greater(t, result.StoredSize, result.Size)
+		assert.Equal(t, "docs.zip", result.Filename)
+		assert.Len(t, result.Files, 2)
+
+		w = doRequest(r, "GET", "/api/v1/pull/"+result.Key, nil,
+			map[string]string{"Accept": "application/json"})
+		require.Equal(t, http.StatusOK, w.Code)
+		resp = parseResponse(t, w)
+		var meta model.PullFilesResult
+		require.NoError(t, json.Unmarshal(resp.Data, &meta))
+		assert.Equal(t, 2, meta.FileCount)
+		assert.Equal(t, result.StoredSize, meta.StoredSize)
+
+		w = doRequest(r, "GET", "/api/v1/pull/"+result.Key, nil, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "Bundle", w.Header().Get("Crossshare-Type"))
+		assert.Equal(t, "docs.zip", w.Header().Get("Crossshare-Filename"))
+		assert.Equal(t, "2", w.Header().Get("Crossshare-File-Count"))
+
+		zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+		require.NoError(t, err)
+		got := map[string]string{}
+		for _, zf := range zr.File {
+			rc, err := zf.Open()
+			require.NoError(t, err)
+			data, err := io.ReadAll(rc)
+			rc.Close()
+			require.NoError(t, err)
+			got[zf.Name] = string(data)
+		}
+		assert.Equal(t, map[string]string{
+			"a.txt": "alpha",
+			"b.txt": "bravo",
+		}, got)
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -432,7 +541,8 @@ func TestPushUnified(t *testing.T) {
 		resp := parseResponse(t, w)
 		var result model.PushResult
 		json.Unmarshal(resp.Data, &result)
-		assert.Equal(t, "binary", result.Type)
+		assert.Equal(t, "files", result.Type)
+		assert.Equal(t, 1, result.FileCount)
 	})
 
 	t.Run("unsupported content type returns 415", func(t *testing.T) {

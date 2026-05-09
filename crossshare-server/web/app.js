@@ -91,6 +91,8 @@
 			metaType: "类型",
 			metaSize: "大小",
 			metaFile: "文件",
+			metaFiles: "文件数",
+			metaStored: "存储",
 		},
 		en: {
 			subtitle: "Cross-Device Content Sharing",
@@ -178,6 +180,8 @@
 			metaType: "Type",
 			metaSize: "Size",
 			metaFile: "File",
+			metaFiles: "Files",
+			metaStored: "Stored",
 		},
 	};
 
@@ -185,6 +189,10 @@
 
 	function t(key) {
 		return (i18n[currentLang] && i18n[currentLang][key]) || key;
+	}
+
+	function fileCountText(count) {
+		return currentLang === "zh" ? `${count} 个文件` : `${count} files`;
 	}
 
 	function applyI18n() {
@@ -215,6 +223,7 @@
 		// Update html lang attribute
 		document.documentElement.lang = currentLang === "zh" ? "zh-CN" : "en";
 		updatePaperFoldLabel();
+		updateSelectedFilesPreview();
 	}
 
 	function toggleLang() {
@@ -294,6 +303,7 @@
 
 	let currentResult = { mode: "", key: "", url: "" };
 	let transferMode = localStorage.getItem("cs_transfer") || "smart";
+	let selectedFiles = [];
 	let p2pState = null;
 	let interactionMode = localStorage.getItem("cs_interaction") || "modern";
 	let paperOpen = false;
@@ -424,7 +434,7 @@
 			const isText = btn.dataset.mode === "text";
 			$("#textMode").classList.toggle("hidden", !isText);
 			$("#fileMode").classList.toggle("hidden", isText);
-			$("#clearFile").classList.toggle("hidden", isText || !selectedFile);
+			$("#clearFile").classList.toggle("hidden", isText || !selectedFiles.length);
 			syncModernPushState();
 		});
 	});
@@ -453,10 +463,9 @@
 
 	// ── Push: file handling ───────────────────────────────────
 
-	let selectedFile = null;
-
 	const dropZone = $("#dropZone");
 	const fileInput = $("#fileInput");
+	fileInput.multiple = true;
 
 	dropZone.addEventListener("dragover", (e) => {
 		e.preventDefault();
@@ -471,13 +480,14 @@
 		e.preventDefault();
 		dropZone.classList.remove("dragover");
 		if (e.dataTransfer.files.length) {
-			selectFile(e.dataTransfer.files[0]);
+			addSelectedFiles(e.dataTransfer.files);
 		}
 	});
 
 	fileInput.addEventListener("change", () => {
 		if (fileInput.files.length) {
-			selectFile(fileInput.files[0]);
+			addSelectedFiles(fileInput.files);
+			fileInput.value = "";
 		}
 	});
 
@@ -488,8 +498,9 @@
 	});
 
 	function updateDropZoneState() {
-		const hasFile = !!selectedFile;
+		const hasFile = selectedFiles.length > 0;
 		dropZone.classList.toggle("has-file", hasFile);
+		dropZone.classList.toggle("has-multiple-files", selectedFiles.length > 1);
 		const titleKey = hasFile ? "dropReady" : "dropHint";
 		const subtitleKey = hasFile ? "dropReadyHint" : "dropSubHint";
 		$("#dropTitle").setAttribute("data-i18n", titleKey);
@@ -498,20 +509,42 @@
 		$("#dropSubtitle").textContent = t(subtitleKey);
 	}
 
-	function selectFile(file) {
-		selectedFile = file;
+	function addSelectedFiles(files) {
+		const seen = new Set(selectedFiles.map(fileSignature));
+		for (const file of Array.from(files)) {
+			const sig = fileSignature(file);
+			if (seen.has(sig)) continue;
+			seen.add(sig);
+			selectedFiles.push(file);
+		}
 		updateDropZoneState();
-		$("#packageFileName").textContent = file.name;
-		$("#packageFileSize").textContent = humanSize(file.size);
+		updateSelectedFilesPreview();
 		$("#clearFile").classList.remove("hidden");
 		syncModernPushState();
 	}
 
+	function fileSignature(file) {
+		return `${file.name}\n${file.size}\n${file.lastModified}`;
+	}
+
+	function updateSelectedFilesPreview() {
+		if (!selectedFiles.length) {
+			$("#packageFileName").textContent = "";
+			$("#packageFileSize").textContent = "";
+			return;
+		}
+		const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+		$("#packageFileName").textContent =
+			selectedFiles.length === 1
+				? selectedFiles[0].name
+				: fileCountText(selectedFiles.length);
+		$("#packageFileSize").textContent = humanSize(totalSize);
+	}
+
 	function clearSelectedFile() {
-		selectedFile = null;
+		selectedFiles = [];
 		fileInput.value = "";
-		$("#packageFileName").textContent = "";
-		$("#packageFileSize").textContent = "";
+		updateSelectedFilesPreview();
 		$("#clearFile").classList.add("hidden");
 		updateDropZoneState();
 		syncModernPushState();
@@ -594,7 +627,7 @@
 		}
 
 		const isText = $(".mode.active")?.dataset.mode === "text";
-		const ready = isText ? !!$("#pushText").value.trim() : !!selectedFile;
+		const ready = isText ? !!$("#pushText").value.trim() : selectedFiles.length > 0;
 		btn.disabled = !ready;
 		btn.classList.toggle("modern-ready", ready);
 	}
@@ -675,6 +708,11 @@
 			triggerModernSendAnimation(input.type);
 			clearPushResult();
 
+			if (transferMode === "smart" && input.type === "files") {
+				await pushToServer(input);
+				return;
+			}
+
 			if (transferMode === "smart") {
 				if (!supportsP2P()) {
 					toast(t("p2pUnsupported"), "error");
@@ -713,17 +751,22 @@
 			};
 		}
 
-		if (!selectedFile) {
+		if (!selectedFiles.length) {
 			toast(t("selectFile"), "error");
 			return null;
 		}
+		const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+		const singleFile = selectedFiles.length === 1 ? selectedFiles[0] : null;
 		return {
-			type: "binary",
-			file: selectedFile,
+			type: singleFile ? "binary" : "files",
+			file: singleFile,
+			files: selectedFiles,
 			ttl,
-			size: selectedFile.size,
-			filename: selectedFile.name,
-			contentType: selectedFile.type || "application/octet-stream",
+			size: totalSize,
+			filename: singleFile ? singleFile.name : "crossshare-files.zip",
+			contentType: singleFile
+				? singleFile.type || "application/octet-stream"
+				: "application/zip",
 		};
 	}
 
@@ -764,17 +807,19 @@
 				body: JSON.stringify(body),
 			});
 		} else {
-			const headers = {
-				"Content-Type": "application/octet-stream",
-				Filename: input.filename,
-				...authHeaders(),
-			};
-			if (input.ttl > 0) headers["X-TTL"] = String(input.ttl);
+			const body = new FormData();
+			for (const file of input.files || [input.file]) {
+				body.append("files", file, file.name);
+			}
+			if (input.ttl > 0) body.append("ttl", String(input.ttl));
+			if (input.type === "files" && input.filename) {
+				body.append("name", input.filename);
+			}
 
-			resp = await fetch(apiUrl("/push/binary"), {
+			resp = await fetch(apiUrl("/push/files"), {
 				method: "POST",
-				headers,
-				body: input.file,
+				headers: authHeaders(),
+				body,
 			});
 		}
 
@@ -795,6 +840,10 @@
 		$("#resultKey").textContent = r.key;
 		let meta = `${t("metaType")}: ${r.type} · ${t("metaSize")}: ${humanSize(r.size)} · TTL: ${humanDuration(r.ttl)}`;
 		if (r.filename) meta += ` · ${t("metaFile")}: ${r.filename}`;
+		if (r.file_count) meta += ` · ${t("metaFiles")}: ${r.file_count}`;
+		if (r.stored_size && r.stored_size !== r.size) {
+			meta += ` · ${t("metaStored")}: ${humanSize(r.stored_size)}`;
+		}
 		$("#resultMeta").textContent = meta;
 		$("#pushResult").classList.remove("hidden");
 		setPushResultActions("server");
@@ -1530,32 +1579,34 @@
 				headers["Delete-After-Pull"] = "true";
 			}
 
-			const jsonResp = await fetch(apiUrl("/pull/" + key), {
-				headers: { ...headers, Accept: "application/json" },
-			});
+			if (!headers["Delete-After-Pull"]) {
+				const jsonResp = await fetch(apiUrl("/pull/" + key), {
+					headers: { ...headers, Accept: "application/json" },
+				});
 
-			const ct = jsonResp.headers.get("Content-Type") || "";
+				const ct = jsonResp.headers.get("Content-Type") || "";
 
-			if (ct.includes("application/json")) {
-				const data = await jsonResp.json();
-				if (data.code !== 0) {
-					setSafeState("error");
-					toast(`${t("pullFail")}: ${data.msg}`, "error");
-					return;
-				}
+				if (ct.includes("application/json")) {
+					const data = await jsonResp.json();
+					if (data.code !== 0) {
+						setSafeState("error");
+						toast(`${t("pullFail")}: ${data.msg}`, "error");
+						return;
+					}
 
-				const r = data.data;
-				if (r.text !== undefined) {
-					$("#pullTextContent").textContent = r.text;
-					$("#pullTextResult").classList.remove("hidden");
-					$("#pullFileResult").classList.add("hidden");
-					let meta = `Key: ${r.key} · ${t("metaSize")}: ${humanSize(r.size)} · ${t("metaType")}: ${r.content_type}`;
-					if (r.deleted) meta += ` · ${t("deleted")}`;
-					$("#pullMeta").textContent = meta;
-					$("#pullResult").classList.remove("hidden");
-					setSafeState("open");
-					toast(t("pullOk"), "success");
-					return;
+					const r = data.data;
+					if (r.text !== undefined) {
+						$("#pullTextContent").textContent = r.text;
+						$("#pullTextResult").classList.remove("hidden");
+						$("#pullFileResult").classList.add("hidden");
+						let meta = `Key: ${r.key} · ${t("metaSize")}: ${humanSize(r.size)} · ${t("metaType")}: ${r.content_type}`;
+						if (r.deleted) meta += ` · ${t("deleted")}`;
+						$("#pullMeta").textContent = meta;
+						$("#pullResult").classList.remove("hidden");
+						setSafeState("open");
+						toast(t("pullOk"), "success");
+						return;
+					}
 				}
 			}
 
@@ -1574,6 +1625,7 @@
 			const shareType = streamResp.headers.get("Crossshare-Type");
 			const filename =
 				streamResp.headers.get("Crossshare-Filename") || "download";
+			const fileCount = streamResp.headers.get("Crossshare-File-Count");
 			const deleted = streamResp.headers.get("Key-Deleted") === "true";
 
 			if (shareType === "Text") {
@@ -1593,6 +1645,8 @@
 			}
 
 			let meta = `Key: ${key} · ${t("metaSize")}: ${humanSize(blob.size)}`;
+			if (shareType) meta += ` · ${t("metaType")}: ${shareType}`;
+			if (fileCount) meta += ` · ${t("metaFiles")}: ${fileCount}`;
 			if (deleted) meta += ` · ${t("deleted")}`;
 			$("#pullMeta").textContent = meta;
 			$("#pullResult").classList.remove("hidden");
