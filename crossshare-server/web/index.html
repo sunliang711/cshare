@@ -277,6 +277,51 @@
 								</label>
 							</div>
 
+							<div
+								id="pushQuickResult"
+								class="quick-result hidden"
+								aria-live="polite"
+							>
+								<div class="quick-result-main">
+									<span class="quick-result-dot" aria-hidden="true"></span>
+									<span id="quickResultStatus">发送成功</span>
+									<code id="quickResultValue"></code>
+								</div>
+								<div class="quick-result-actions">
+									<button
+										type="button"
+										class="quick-result-action hidden"
+										id="quickCopyKey"
+										data-i18n="copy"
+									>
+										复制
+									</button>
+									<button
+										type="button"
+										class="quick-result-action"
+										id="quickCopyLink"
+										data-i18n="copyLink"
+									>
+										复制链接
+									</button>
+									<button
+										type="button"
+										class="quick-result-action"
+										id="quickShowQr"
+										data-i18n="showQr"
+									>
+										查看二维码
+									</button>
+									<button
+										type="button"
+										class="quick-result-action hidden"
+										id="quickToggleResult"
+									>
+										详情
+									</button>
+								</div>
+							</div>
+
 							<details class="push-more">
 								<summary data-i18n="moreSettings">更多设置</summary>
 								<div class="options-row">

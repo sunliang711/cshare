@@ -36,6 +36,8 @@
 			copy: "复制",
 			copyLink: "复制链接",
 			showQr: "查看二维码",
+			details: "详情",
+			hideDetails: "收起详情",
 			shareQr: "分享二维码",
 			close: "关闭",
 			cancel: "取消",
@@ -136,6 +138,8 @@
 			copy: "Copy",
 			copyLink: "Copy Link",
 			showQr: "QR Code",
+			details: "Details",
+			hideDetails: "Hide details",
 			shareQr: "Share QR Code",
 			close: "Close",
 			cancel: "Cancel",
@@ -247,6 +251,7 @@
 		updatePaperFoldLabel();
 		updateSelectedFilesPreview();
 		updateDirectTransferText();
+		updateQuickResultToggleText();
 	}
 
 	function toggleLang() {
@@ -881,6 +886,9 @@
 		$("#resultKey").textContent = "";
 		$("#resultMeta").textContent = "";
 		$("#pushResult").classList.add("hidden");
+		$("#pushQuickResult").classList.add("hidden");
+		$("#quickResultValue").textContent = "";
+		updateQuickResultToggleText();
 		setPushResultActions("");
 	}
 
@@ -950,11 +958,26 @@
 			meta += ` · ${t("metaStored")}: ${humanSize(r.stored_size)}`;
 		}
 		$("#resultMeta").textContent = meta;
-		$("#pushResult").classList.remove("hidden");
+		$("#pushResult").classList.add("hidden");
+		renderQuickPushResult("server", t("pushOk"), `Key: ${r.key}`);
 		setPushResultActions("server");
 
 		// Start countdown timer
 		startCountdown(r.expire_at || Math.floor(Date.now() / 1000) + r.ttl);
+	}
+
+	function renderQuickPushResult(mode, status, value) {
+		$("#quickResultStatus").textContent = status;
+		$("#quickResultValue").textContent = value || "";
+		$("#pushQuickResult").classList.remove("hidden");
+		setPushResultActions(mode);
+		updateQuickResultToggleText();
+		requestAnimationFrame(() => {
+			$("#pushQuickResult").scrollIntoView({
+				behavior: "smooth",
+				block: "nearest",
+			});
+		});
 	}
 
 	function supportsP2P() {
@@ -966,12 +989,18 @@
 	}
 
 	function setPushResultActions(mode) {
+		const hasShareLink = mode === "server" || mode === "p2p";
 		$("#copyKey").classList.toggle("hidden", mode !== "server");
-		$("#copyLink").classList.toggle("hidden", !mode);
-		$("#showQr").classList.toggle("hidden", !mode);
+		$("#copyLink").classList.toggle("hidden", !hasShareLink);
+		$("#showQr").classList.toggle("hidden", !hasShareLink);
 		$("#cleanupServerPush").classList.toggle("hidden", mode !== "server");
 		$("#saveToServer").classList.toggle("hidden", mode !== "p2p");
 		$("#cancelP2p").classList.toggle("hidden", mode !== "p2p");
+		$("#quickCopyKey").classList.toggle("hidden", mode !== "server");
+		$("#quickCopyLink").classList.toggle("hidden", !hasShareLink);
+		$("#quickShowQr").classList.toggle("hidden", !hasShareLink);
+		$("#quickToggleResult").classList.toggle("hidden", mode !== "server");
+		updateQuickResultToggleText();
 	}
 
 	function updateP2PStatus(target, message, active, detail) {
@@ -1169,6 +1198,7 @@
 		currentResult = { mode: "p2p", key: sessionID, url: shareUrl };
 		$("#resultKey").textContent = t("p2pLinkLabel");
 		$("#pushResult").classList.remove("hidden");
+		renderQuickPushResult("p2p", t("p2pLinkLabel"), t("p2pWaiting"));
 		setPushResultActions("p2p");
 
 		p2pState = {
@@ -1319,6 +1349,7 @@
 		state.transferDone = true;
 		state.stopped = true;
 		setPushResultActions("p2pDone");
+		renderQuickPushResult("p2pDone", t("p2pSent"), t("p2pNotStored"));
 		updateP2PStatus("push", t("p2pNotStored"), false, currentResult.url);
 		toast(t("p2pSent"), "success");
 		foldPaperAfterPush(input);
@@ -1574,18 +1605,21 @@
 		return { type: description.type, sdp: description.sdp };
 	}
 
-	$("#copyKey").addEventListener("click", () => {
-		copyText($("#resultKey").textContent);
+	function copyCurrentKey() {
+		if (!currentResult.key) return;
+		copyText(currentResult.key);
 		toast(t("keyCopied"), "success");
-	});
+	}
 
-	$("#copyLink").addEventListener("click", () => {
-		copyText(currentResult.url || buildShareUrl($("#resultKey").textContent));
+	function copyCurrentLink() {
+		const key = currentResult.key || $("#resultKey").textContent;
+		copyText(currentResult.url || buildShareUrl(key));
 		toast(t("linkCopied"), "success");
-	});
+	}
 
-	$("#showQr").addEventListener("click", () => {
-		const shareUrl = currentResult.url || buildShareUrl($("#resultKey").textContent);
+	function showCurrentQr() {
+		const key = currentResult.key || $("#resultKey").textContent;
+		const shareUrl = currentResult.url || buildShareUrl(key);
 		const canvas = $("#qrCanvas");
 
 		try {
@@ -1600,7 +1634,39 @@
 
 		$("#qrLink").textContent = shareUrl;
 		$("#qrModal").classList.remove("hidden");
-	});
+	}
+
+	function togglePushResultDetails() {
+		if (!currentResult.mode) return;
+		const result = $("#pushResult");
+		const shouldShow = result.classList.contains("hidden");
+		result.classList.toggle("hidden", !shouldShow);
+		updateQuickResultToggleText();
+		if (shouldShow) {
+			requestAnimationFrame(() => {
+				result.scrollIntoView({
+					behavior: "smooth",
+					block: "nearest",
+				});
+			});
+		}
+	}
+
+	function updateQuickResultToggleText() {
+		const btn = $("#quickToggleResult");
+		if (!btn) return;
+		btn.textContent = $("#pushResult").classList.contains("hidden")
+			? t("details")
+			: t("hideDetails");
+	}
+
+	$("#copyKey").addEventListener("click", copyCurrentKey);
+	$("#copyLink").addEventListener("click", copyCurrentLink);
+	$("#showQr").addEventListener("click", showCurrentQr);
+	$("#quickCopyKey").addEventListener("click", copyCurrentKey);
+	$("#quickCopyLink").addEventListener("click", copyCurrentLink);
+	$("#quickShowQr").addEventListener("click", showCurrentQr);
+	$("#quickToggleResult").addEventListener("click", togglePushResultDetails);
 
 	$("#cleanupServerPush").addEventListener("click", async () => {
 		if (currentResult.mode !== "server" || !currentResult.key) return;
