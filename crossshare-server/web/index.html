@@ -174,8 +174,25 @@
 								<span class="package-visual" aria-hidden="true">
 									<span class="package-lid"></span>
 									<span class="package-box"></span>
-									<span class="package-file"></span>
+									<span class="package-file">
+										<span class="package-file-name" id="packageFileName"></span>
+										<span class="package-file-size" id="packageFileSize"></span>
+									</span>
 								</span>
+								<button
+									type="button"
+									id="clearFile"
+									class="file-clear hidden"
+									data-i18n-title="clear"
+									data-i18n-aria-label="clear"
+									title="清除"
+									aria-label="清除"
+								>
+									<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+										<path d="M6 6l12 12" />
+										<path d="M18 6L6 18" />
+									</svg>
+								</button>
 								<span class="drop-icon" aria-hidden="true">
 									<svg
 										class="drop-icon-upload"
@@ -208,8 +225,6 @@
 							</div>
 						</div>
 					</div>
-
-					<div id="fileInfo" class="file-info hidden"></div>
 
 					<div class="action-dock">
 						<div class="transfer-switch">

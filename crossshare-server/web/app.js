@@ -424,7 +424,7 @@
 			const isText = btn.dataset.mode === "text";
 			$("#textMode").classList.toggle("hidden", !isText);
 			$("#fileMode").classList.toggle("hidden", isText);
-			$("#fileInfo").classList.toggle("hidden", isText || !selectedFile);
+			$("#clearFile").classList.toggle("hidden", isText || !selectedFile);
 			syncModernPushState();
 		});
 	});
@@ -481,6 +481,12 @@
 		}
 	});
 
+	$("#clearFile").addEventListener("click", (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		clearSelectedFile();
+	});
+
 	function updateDropZoneState() {
 		const hasFile = !!selectedFile;
 		dropZone.classList.toggle("has-file", hasFile);
@@ -495,9 +501,19 @@
 	function selectFile(file) {
 		selectedFile = file;
 		updateDropZoneState();
-		const info = $("#fileInfo");
-		info.classList.remove("hidden");
-		info.innerHTML = `<span>${file.name}</span><span>${humanSize(file.size)}</span>`;
+		$("#packageFileName").textContent = file.name;
+		$("#packageFileSize").textContent = humanSize(file.size);
+		$("#clearFile").classList.remove("hidden");
+		syncModernPushState();
+	}
+
+	function clearSelectedFile() {
+		selectedFile = null;
+		fileInput.value = "";
+		$("#packageFileName").textContent = "";
+		$("#packageFileSize").textContent = "";
+		$("#clearFile").classList.add("hidden");
+		updateDropZoneState();
 		syncModernPushState();
 	}
 
