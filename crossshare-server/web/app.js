@@ -11,19 +11,23 @@
 			tokenLabel: "Token (可选)",
 			save: "保存",
 			checkConn: "检查连接",
-			push: "推送",
-			pull: "拉取",
-			newInteraction: "新版",
-			classicInteraction: "经典",
+			push: "发送",
+			pull: "接收",
+			sendPanelTitle: "发送内容",
+			sendPanelSubtitle: "选择要分享的内容类型",
+			receivePanelTitle: "接收内容",
+			receivePanelSubtitle: "输入 Key 或打开分享链接接收内容",
+			openTextInput: "展开文本输入",
+			selectedFiles: "已选文件",
+			removeFile: "移除文件",
 			text: "文本",
 			file: "文件",
 			pushPlaceholder: "输入要分享的文本内容…",
-			paperFolded: "写点什么",
 			collapsePaper: "收起信纸",
-			dropHint: "选择文件",
-			dropSubHint: "或拖拽到此处",
+			dropHint: "拖拽文件到这里",
+			dropSubHint: "或点击选择文件",
 			dropReady: "文件已选择",
-			dropReadyHint: "可继续推送",
+			dropReadyHint: "可继续发送",
 			defaultPlaceholder: "默认",
 			seconds: "秒",
 			smartTransfer: "直连优先",
@@ -55,9 +59,9 @@
 			noConnect: "✗ 无法连接",
 			enterText: "请输入文本内容",
 			selectFile: "请选择文件",
-			pushing: "推送中…",
-			pushOk: "推送成功",
-			pushFail: "推送失败",
+			pushing: "发送中…",
+			pushOk: "发送成功",
+			pushFail: "发送失败",
 			p2pUnsupported: "当前浏览器不支持直连，已切换服务器传输",
 			p2pWaiting: "等待接收方连接，请保持此页面打开",
 			p2pSignalExchange: "交换连接信息",
@@ -74,7 +78,7 @@
 			p2pFailed: "直连失败",
 			p2pFallback: "正在改用服务器传输",
 			p2pCancelled: "直连已取消",
-			p2pLinkLabel: "直连链接",
+			p2pLinkLabel: "直连连接",
 			p2pSenderOffline: "发送方不在线或无法直连",
 			p2pElapsed: "耗时",
 			p2pRouteLabel: "连接",
@@ -83,9 +87,9 @@
 			p2pRouteRelay: "TURN 中继",
 			p2pCandidateLocal: "本地",
 			p2pCandidateRemote: "对端",
-			pullFail: "拉取失败",
-			pulling: "拉取中…",
-			pullOk: "拉取成功",
+			pullFail: "接收失败",
+			pulling: "接收中…",
+			pullOk: "接收成功",
 			enterKeyWarn: "请输入 Key",
 			deleteFail: "删除失败",
 			deleteOk: "删除成功",
@@ -107,19 +111,23 @@
 			tokenLabel: "Token (optional)",
 			save: "Save",
 			checkConn: "Test Connection",
-			push: "Push",
-			pull: "Pull",
-			newInteraction: "New",
-			classicInteraction: "Classic",
+			push: "Send",
+			pull: "Receive",
+			sendPanelTitle: "Send Content",
+			sendPanelSubtitle: "Choose the content type to share",
+			receivePanelTitle: "Receive Content",
+			receivePanelSubtitle: "Enter a key or open a share link",
+			openTextInput: "Open text input",
+			selectedFiles: "Selected files",
+			removeFile: "Remove file",
 			text: "Text",
 			file: "File",
 			pushPlaceholder: "Enter text to share…",
-			paperFolded: "Write something",
 			collapsePaper: "Collapse letter",
-			dropHint: "Select file",
-			dropSubHint: "or drag it here",
+			dropHint: "Drop files here",
+			dropSubHint: "or click to choose",
 			dropReady: "File ready",
-			dropReadyHint: "Ready to push",
+			dropReadyHint: "Ready to send",
 			defaultPlaceholder: "Default",
 			seconds: "sec",
 			smartTransfer: "Direct First",
@@ -151,9 +159,9 @@
 			noConnect: "✗ Cannot connect",
 			enterText: "Please enter text",
 			selectFile: "Please select a file",
-			pushing: "Pushing…",
-			pushOk: "Push successful",
-			pushFail: "Push failed",
+			pushing: "Sending…",
+			pushOk: "Sent successfully",
+			pushFail: "Send failed",
 			p2pUnsupported: "Direct transfer is not supported, using server transfer",
 			p2pWaiting: "Waiting for receiver, keep this page open",
 			p2pSignalExchange: "Exchanging connection info",
@@ -170,7 +178,7 @@
 			p2pFailed: "Direct transfer failed",
 			p2pFallback: "Switching to server transfer",
 			p2pCancelled: "Direct transfer cancelled",
-			p2pLinkLabel: "Direct Link",
+			p2pLinkLabel: "Direct Connection",
 			p2pSenderOffline: "Sender is offline or direct connection failed",
 			p2pElapsed: "Elapsed",
 			p2pRouteLabel: "Path",
@@ -179,9 +187,9 @@
 			p2pRouteRelay: "TURN relay",
 			p2pCandidateLocal: "Local",
 			p2pCandidateRemote: "Remote",
-			pullFail: "Pull failed",
-			pulling: "Pulling…",
-			pullOk: "Pull successful",
+			pullFail: "Receive failed",
+			pulling: "Receiving…",
+			pullOk: "Received successfully",
 			enterKeyWarn: "Please enter Key",
 			deleteFail: "Delete failed",
 			deleteOk: "Deleted successfully",
@@ -245,6 +253,7 @@
 		currentLang = currentLang === "zh" ? "en" : "zh";
 		localStorage.setItem("cs_lang", currentLang);
 		applyI18n();
+		updateDropZoneState();
 		const btn = $("#langToggle");
 		btn.textContent = currentLang === "zh" ? "EN" : "中";
 		btn.title = currentLang === "zh" ? "Switch to English" : "切换到中文";
@@ -320,7 +329,7 @@
 	let transferMode = localStorage.getItem("cs_transfer") || "smart";
 	let selectedFiles = [];
 	let p2pState = null;
-	let interactionMode = localStorage.getItem("cs_interaction") || "modern";
+	let interactionMode = "modern";
 	let paperOpen = false;
 	let modernSendTimer = null;
 	let pendingPaperFoldAfterSend = false;
@@ -539,16 +548,30 @@
 		clearSelectedFile();
 	});
 
+	$("#selectedFileList").addEventListener("click", (e) => {
+		const btn = e.target.closest("[data-remove-file-index]");
+		if (!btn) return;
+		e.preventDefault();
+		e.stopPropagation();
+		removeSelectedFile(Number(btn.dataset.removeFileIndex));
+	});
+
 	function updateDropZoneState() {
 		const hasFile = selectedFiles.length > 0;
 		dropZone.classList.toggle("has-file", hasFile);
 		dropZone.classList.toggle("has-multiple-files", selectedFiles.length > 1);
-		const titleKey = hasFile ? "dropReady" : "dropHint";
-		const subtitleKey = hasFile ? "dropReadyHint" : "dropSubHint";
-		$("#dropTitle").setAttribute("data-i18n", titleKey);
-		$("#dropSubtitle").setAttribute("data-i18n", subtitleKey);
-		$("#dropTitle").textContent = t(titleKey);
-		$("#dropSubtitle").textContent = t(subtitleKey);
+		if (hasFile) {
+			const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+			$("#dropTitle").removeAttribute("data-i18n");
+			$("#dropSubtitle").removeAttribute("data-i18n");
+			$("#dropTitle").textContent = selectedFilesTitle(selectedFiles.length);
+			$("#dropSubtitle").textContent = selectedFilesSubtitle(totalSize);
+			return;
+		}
+		$("#dropTitle").setAttribute("data-i18n", "dropHint");
+		$("#dropSubtitle").setAttribute("data-i18n", "dropSubHint");
+		$("#dropTitle").textContent = t("dropHint");
+		$("#dropSubtitle").textContent = t("dropSubHint");
 	}
 
 	function addSelectedFiles(files) {
@@ -570,9 +593,12 @@
 	}
 
 	function updateSelectedFilesPreview() {
+		const list = $("#selectedFileList");
 		if (!selectedFiles.length) {
 			$("#packageFileName").textContent = "";
 			$("#packageFileSize").textContent = "";
+			list.replaceChildren();
+			list.classList.add("hidden");
 			return;
 		}
 		const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
@@ -581,6 +607,33 @@
 				? selectedFiles[0].name
 				: fileCountText(selectedFiles.length);
 		$("#packageFileSize").textContent = humanSize(totalSize);
+		list.replaceChildren();
+		selectedFiles.forEach((file, index) => {
+			const item = document.createElement("li");
+			item.className = "selected-file-item";
+
+			const name = document.createElement("span");
+			name.className = "selected-file-name";
+			name.textContent = file.name;
+			name.title = file.name;
+
+			const size = document.createElement("span");
+			size.className = "selected-file-size";
+			size.textContent = humanSize(file.size);
+
+			const remove = document.createElement("button");
+			remove.type = "button";
+			remove.className = "selected-file-remove";
+			remove.dataset.removeFileIndex = String(index);
+			remove.setAttribute("aria-label", `${t("removeFile")}: ${file.name}`);
+			remove.title = t("removeFile");
+			remove.innerHTML =
+				'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>';
+
+			item.append(name, size, remove);
+			list.appendChild(item);
+		});
+		list.classList.remove("hidden");
 	}
 
 	function clearSelectedFile() {
@@ -592,18 +645,37 @@
 		syncModernPushState();
 	}
 
+	function removeSelectedFile(index) {
+		if (index < 0 || index >= selectedFiles.length) return;
+		selectedFiles.splice(index, 1);
+		fileInput.value = "";
+		updateDropZoneState();
+		updateSelectedFilesPreview();
+		$("#clearFile").classList.toggle(
+			"hidden",
+			!selectedFiles.length || $(".mode.active")?.dataset.mode === "text",
+		);
+		syncModernPushState();
+	}
+
+	function selectedFilesTitle(count) {
+		return currentLang === "zh"
+			? `已选择 ${fileCountText(count)}`
+			: `${fileCountText(count)} selected`;
+	}
+
+	function selectedFilesSubtitle(totalSize) {
+		return currentLang === "zh"
+			? `总计 ${humanSize(totalSize)}，可继续发送`
+			: `${humanSize(totalSize)} total, ready to send`;
+	}
+
 	// ── Interaction mode ──────────────────────────────────────
 
-	function applyInteractionMode(mode) {
-		interactionMode = mode === "classic" ? "classic" : "modern";
+	function applyInteractionMode() {
+		interactionMode = "modern";
 		document.documentElement.setAttribute("data-interaction", interactionMode);
-		localStorage.setItem("cs_interaction", interactionMode);
-		$$(".interaction").forEach((btn) => {
-			btn.classList.toggle(
-				"active",
-				btn.dataset.interactionMode === interactionMode,
-			);
-		});
+		localStorage.removeItem("cs_interaction");
 		syncModernPushState();
 	}
 
@@ -634,22 +706,17 @@
 	}
 
 	function updatePaperFoldLabel() {
-		const label = $(".paper-fold-text");
-		if (!label) return;
-
 		const text = $("#pushText")?.value.trim() || "";
 		const preview = $(".paper-preview");
 		const countBadge = $(".paper-count");
 		$("#paperPrompt").classList.toggle("has-paper-text", !!text);
 		if (!text) {
-			label.textContent = t("paperFolded");
 			if (preview) preview.textContent = "";
 			if (countBadge) countBadge.textContent = "";
 			return;
 		}
 
 		const count = Array.from(text).length;
-		label.textContent = "";
 		if (countBadge) countBadge.textContent = String(count);
 		if (preview) {
 			const summary = text.replace(/\s+/g, " ");
@@ -706,12 +773,6 @@
 		setPaperOpen(false, false);
 	}
 
-	$$(".interaction").forEach((btn) => {
-		btn.addEventListener("click", () => {
-			applyInteractionMode(btn.dataset.interactionMode);
-		});
-	});
-
 	$("#paperPrompt").addEventListener("click", () => setPaperOpen(true, true));
 	$("#paperCollapse").addEventListener("click", () => setPaperOpen(false, false));
 
@@ -733,7 +794,7 @@
 		setPaperOpen(false, false);
 	});
 
-	applyInteractionMode(interactionMode);
+	applyInteractionMode();
 
 	// ── Push ──────────────────────────────────────────────────
 
@@ -804,7 +865,7 @@
 		return {
 			type: singleFile ? "binary" : "files",
 			file: singleFile,
-			files: selectedFiles,
+			files: [...selectedFiles],
 			ttl,
 			size: totalSize,
 			filename: singleFile ? singleFile.name : "crossshare-files.zip",
