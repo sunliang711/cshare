@@ -7,6 +7,7 @@
 	const i18n = {
 		zh: {
 			subtitle: "跨设备内容分享",
+			serverUrlLabel: "服务器地址",
 			tokenLabel: "Token (可选)",
 			save: "保存",
 			checkConn: "检查连接",
@@ -76,6 +77,12 @@
 			p2pLinkLabel: "直连链接",
 			p2pSenderOffline: "发送方不在线或无法直连",
 			p2pElapsed: "耗时",
+			p2pRouteLabel: "连接",
+			p2pRouteLan: "局域网直连",
+			p2pRouteNat: "NAT 穿透",
+			p2pRouteRelay: "TURN 中继",
+			p2pCandidateLocal: "本地",
+			p2pCandidateRemote: "对端",
 			pullFail: "拉取失败",
 			pulling: "拉取中…",
 			pullOk: "拉取成功",
@@ -96,6 +103,7 @@
 		},
 		en: {
 			subtitle: "Cross-Device Content Sharing",
+			serverUrlLabel: "Server URL",
 			tokenLabel: "Token (optional)",
 			save: "Save",
 			checkConn: "Test Connection",
@@ -165,6 +173,12 @@
 			p2pLinkLabel: "Direct Link",
 			p2pSenderOffline: "Sender is offline or direct connection failed",
 			p2pElapsed: "Elapsed",
+			p2pRouteLabel: "Path",
+			p2pRouteLan: "LAN direct",
+			p2pRouteNat: "NAT traversal",
+			p2pRouteRelay: "TURN relay",
+			p2pCandidateLocal: "Local",
+			p2pCandidateRemote: "Remote",
 			pullFail: "Pull failed",
 			pulling: "Pulling…",
 			pullOk: "Pull successful",
@@ -224,6 +238,7 @@
 		document.documentElement.lang = currentLang === "zh" ? "zh-CN" : "en";
 		updatePaperFoldLabel();
 		updateSelectedFilesPreview();
+		updateDirectTransferText();
 	}
 
 	function toggleLang() {
@@ -389,6 +404,17 @@
 		$("#settingsPanel").classList.toggle("hidden");
 	});
 
+	function closeSettingsPanel() {
+		$("#settingsPanel").classList.add("hidden");
+	}
+
+	document.addEventListener("pointerdown", (e) => {
+		const panel = $("#settingsPanel");
+		if (panel.classList.contains("hidden")) return;
+		if (panel.contains(e.target) || $("#settingsToggle").contains(e.target)) return;
+		closeSettingsPanel();
+	});
+
 	$("#saveSettings").addEventListener("click", saveSettings);
 
 	$("#healthCheck").addEventListener("click", async () => {
@@ -448,6 +474,22 @@
 		const toggle = $("#directTransferToggle");
 		if (toggle) {
 			toggle.checked = transferMode === "smart";
+		}
+		updateDirectTransferText();
+	}
+
+	function updateDirectTransferText() {
+		const text = $(".direct-toggle-text");
+		if (!text) return;
+		const key = transferMode === "smart" ? "smartTransfer" : "serverTransfer";
+		text.textContent = t(key);
+		const toggle = $("#directTransferToggle");
+		if (toggle) {
+			toggle.setAttribute("aria-label", t(key));
+		}
+		const label = $(".direct-toggle");
+		if (label) {
+			label.title = transferMode === "smart" ? t("directTransferHint") : t("serverTransfer");
 		}
 	}
 
@@ -702,6 +744,8 @@
 		try {
 			const input = getPushInput(isText);
 			if (!input) return;
+			const pushMore = $(".push-more");
+			if (pushMore) pushMore.open = false;
 			btn.dataset.busy = "true";
 			btn.disabled = true;
 			btn.textContent = t("pushing");
@@ -877,7 +921,7 @@
 			state.statusActive = active;
 			state.statusDetail = detail;
 		}
-		renderP2PStatus(target, message, active, detail, state?.startedAt);
+		renderP2PStatus(target, message, active, detail, state?.startedAt, state?.p2pDiagnostic);
 		if (!state) return;
 
 		if (active && !state.statusTimer) {
@@ -892,6 +936,7 @@
 					state.statusActive,
 					state.statusDetail,
 					state.startedAt,
+					state.p2pDiagnostic,
 				);
 			}, 500);
 		}
@@ -900,11 +945,12 @@
 		}
 	}
 
-	function renderP2PStatus(target, message, active, detail, startedAt) {
+	function renderP2PStatus(target, message, active, detail, startedAt, diagnostic) {
 		const el = target === "pull" ? $("#pullMeta") : $("#resultMeta");
 		if (!el) return;
 
 		const elapsed = startedAt ? formatElapsed(Date.now() - startedAt) : "";
+		const fullDetail = [detail, diagnostic].filter(Boolean).join(" · ");
 		const indicator = active
 			? '<span class="p2p-spinner"></span>'
 			: '<span class="p2p-dot"></span>';
@@ -914,7 +960,7 @@
 				<span class="p2p-status-main">${escapeHTML(message)}</span>
 				${elapsed ? `<span class="p2p-elapsed">${escapeHTML(t("p2pElapsed"))}: ${elapsed}</span>` : ""}
 			</div>
-			${detail ? `<div class="p2p-status-detail">${escapeHTML(detail)}</div>` : ""}
+			${fullDetail ? `<div class="p2p-status-detail">${escapeHTML(fullDetail)}</div>` : ""}
 		`;
 	}
 
@@ -930,6 +976,114 @@
 			'"': "&quot;",
 			"'": "&#39;",
 		})[ch]);
+	}
+
+	async function updateP2PDiagnostic(state, target) {
+		if (!state || !state.pc || p2pState !== state) return;
+		const diagnostic = await getP2PDiagnostic(state.pc);
+		if (!diagnostic || p2pState !== state) return;
+		state.p2pDiagnostic = diagnostic;
+		sendP2PDiagnostic(state);
+		renderP2PStatus(
+			state.statusTarget || target,
+			state.statusMessage || t("p2pConnected"),
+			state.statusActive !== false,
+			state.statusDetail || "",
+			state.startedAt,
+			state.p2pDiagnostic,
+		);
+	}
+
+	function scheduleP2PDiagnostic(state, target) {
+		updateP2PDiagnostic(state, target).catch(() => {});
+		setTimeout(() => updateP2PDiagnostic(state, target).catch(() => {}), 500);
+		setTimeout(() => updateP2PDiagnostic(state, target).catch(() => {}), 1500);
+	}
+
+	function sendP2PDiagnostic(state) {
+		if (
+			!state ||
+			state.role !== "sender" ||
+			state.p2pDiagnosticSent ||
+			!state.dc ||
+			state.dc.readyState !== "open" ||
+			!state.p2pDiagnostic
+		) {
+			return;
+		}
+		state.p2pDiagnosticSent = true;
+		try {
+			state.dc.send(JSON.stringify({
+				kind: "diagnostic",
+				diagnostic: state.p2pDiagnostic,
+			}));
+		} catch {
+			// ignore
+		}
+	}
+
+	// 读取已选 ICE candidate pair，用于展示实际 P2P 路径。
+	async function getP2PDiagnostic(pc) {
+		if (!pc.getStats) return "";
+		const stats = await pc.getStats();
+		let selectedPair = null;
+
+		stats.forEach((report) => {
+			if (report.type === "transport" && report.selectedCandidatePairId) {
+				selectedPair = stats.get(report.selectedCandidatePairId);
+			}
+		});
+		if (!selectedPair) {
+			let succeededPair = null;
+			let succeededPairBytes = -1;
+			stats.forEach((report) => {
+				if (
+					report.type === "candidate-pair" &&
+					(report.selected || (report.nominated && report.state === "succeeded"))
+				) {
+					selectedPair = report;
+				}
+				if (report.type === "candidate-pair" && report.state === "succeeded") {
+					const bytes = (report.bytesSent || 0) + (report.bytesReceived || 0);
+					if (bytes > succeededPairBytes) {
+						succeededPair = report;
+						succeededPairBytes = bytes;
+					}
+				}
+			});
+			if (!selectedPair) selectedPair = succeededPair;
+		}
+		if (!selectedPair) return "";
+
+		const local = stats.get(selectedPair.localCandidateId);
+		const remote = stats.get(selectedPair.remoteCandidateId);
+		if (!local || !remote) return "";
+
+		const localType = local.candidateType || "";
+		const remoteType = remote.candidateType || "";
+		const route = routeTypeText(localType, remoteType);
+		const protocol = local.protocol || remote.protocol || "";
+		const parts = [
+			`${t("p2pRouteLabel")}: ${route}`,
+			`${t("p2pCandidateLocal")}: ${candidateTypeText(localType)}`,
+			`${t("p2pCandidateRemote")}: ${candidateTypeText(remoteType)}`,
+		];
+		if (protocol) parts.push(protocol.toUpperCase());
+		return parts.join(" · ");
+	}
+
+	function routeTypeText(localType, remoteType) {
+		if (localType === "relay" || remoteType === "relay") return t("p2pRouteRelay");
+		if (localType === "host" && remoteType === "host") return t("p2pRouteLan");
+		return t("p2pRouteNat");
+	}
+
+	function candidateTypeText(type) {
+		const labels =
+			currentLang === "zh"
+				? { host: "主机", srflx: "公网映射", prflx: "对端反射", relay: "中继" }
+				: { host: "host", srflx: "srflx", prflx: "prflx", relay: "relay" };
+		return labels[type] || type || "-";
 	}
 
 	async function startP2PPush(input) {
@@ -974,6 +1128,9 @@
 			upgradeTimer: null,
 			slowTimer: null,
 			statusTimer: null,
+			pollController: null,
+			p2pDiagnostic: "",
+			p2pDiagnosticSent: false,
 			startedAt: Date.now(),
 			pendingCandidates: [],
 			futureCandidates: {},
@@ -1016,6 +1173,7 @@
 				state.connected = true;
 				clearP2PTimers(state);
 				updateP2PStatus("push", t("p2pConnected"), true, currentResult.url);
+				scheduleP2PDiagnostic(state, "push");
 			}
 			if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
 				if (!state.connected && mode === "lan") {
@@ -1030,6 +1188,7 @@
 			state.connected = true;
 			clearP2PTimers(state);
 			updateP2PStatus("push", t("p2pConnected"), true, currentResult.url);
+			scheduleP2PDiagnostic(state, "push");
 			sendP2PContent(state.input).catch((e) => {
 				toast(t("reqFail") + ": " + e.message, "error");
 				markP2PFailed();
@@ -1094,7 +1253,8 @@
 			dc.send(await blob.slice(offset, offset + p2pChunkSize).arrayBuffer());
 		}
 
-		dc.send(JSON.stringify({ kind: "done" }));
+		await updateP2PDiagnostic(state, "push");
+		dc.send(JSON.stringify({ kind: "done", diagnostic: state.p2pDiagnostic || "" }));
 		state.transferDone = true;
 		state.stopped = true;
 		setPushResultActions("p2pDone");
@@ -1180,9 +1340,17 @@
 		state.statusTimer = null;
 	}
 
+	function stopP2PPoll(state) {
+		if (state.pollController) {
+			state.pollController.abort();
+			state.pollController = null;
+		}
+	}
+
 	function stopP2PTransport(state) {
 		clearP2PTimers(state);
 		stopP2PStatusTimer(state);
+		stopP2PPoll(state);
 		closeP2PConnection(state);
 	}
 
@@ -1222,13 +1390,19 @@
 
 	async function pollP2PMessages(role) {
 		while (p2pState && !p2pState.stopped && p2pState.role === role) {
-			const sessionID = p2pState.sessionID;
-			const after = p2pState.lastSeq;
+			const state = p2pState;
+			const sessionID = state.sessionID;
+			const after = state.lastSeq;
+			const controller = new AbortController();
+			state.pollController = controller;
 			try {
 				const resp = await fetch(
 					apiUrl(`/p2p/sessions/${sessionID}/messages?to=${role}&after=${after}&wait=${p2pPollWaitSeconds}`),
-					{ headers: authHeaders() },
+					{ headers: authHeaders(), signal: controller.signal },
 				);
+				if (state.pollController === controller) {
+					state.pollController = null;
+				}
 				if (resp.status === 204) return;
 				const data = await resp.json();
 				if (data.code !== 0) {
@@ -1244,6 +1418,10 @@
 					await handleP2PMessage(msg);
 				}
 			} catch (e) {
+				if (state.pollController === controller) {
+					state.pollController = null;
+				}
+				if (e.name === "AbortError") return;
 				if (p2pState && !p2pState.stopped) {
 					if (role === "sender") markP2PFailed();
 					if (role === "receiver") showP2PReceiveError(t("p2pSenderOffline"));
@@ -1423,6 +1601,8 @@
 			attempt: 0,
 			attemptMode: "",
 			statusTimer: null,
+			pollController: null,
+			p2pDiagnostic: "",
 			startedAt: Date.now(),
 			receiveMeta: null,
 			receiveChunks: [],
@@ -1463,6 +1643,7 @@
 			if (pc.connectionState === "connected") {
 				state.connected = true;
 				updateP2PStatus("pull", t("p2pConnected"), true, "");
+				scheduleP2PDiagnostic(state, "pull");
 			}
 			if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
 				updateP2PStatus("pull", t("p2pSlow"), true, "");
@@ -1482,6 +1663,18 @@
 
 		if (typeof event.data === "string") {
 			const msg = JSON.parse(event.data);
+			if (msg.kind === "diagnostic" && msg.diagnostic) {
+				p2pState.p2pDiagnostic = msg.diagnostic;
+				renderP2PStatus(
+					p2pState.statusTarget || "pull",
+					p2pState.statusMessage || t("p2pConnected"),
+					p2pState.statusActive !== false,
+					p2pState.statusDetail || "",
+					p2pState.startedAt,
+					p2pState.p2pDiagnostic,
+				);
+				return;
+			}
 			if (msg.kind === "meta") {
 				p2pState.receiveMeta = msg;
 				p2pState.receiveChunks = [];
@@ -1490,6 +1683,9 @@
 				return;
 			}
 			if (msg.kind === "done") {
+				if (msg.diagnostic) {
+					p2pState.p2pDiagnostic = msg.diagnostic;
+				}
 				finishP2PReceive();
 			}
 			return;
@@ -1516,7 +1712,8 @@
 				$("#pullTextContent").textContent = text;
 				$("#pullTextResult").classList.remove("hidden");
 				$("#pullFileResult").classList.add("hidden");
-				$("#pullMeta").textContent = `${t("p2pDone")} · ${t("metaSize")}: ${humanSize(blob.size)}`;
+				updateP2PStatus("pull", `${t("p2pDone")} · ${t("metaSize")}: ${humanSize(blob.size)}`, false, "");
+				scheduleP2PDiagnostic(p2pState, "pull");
 				toast(t("p2pDone"), "success");
 			});
 			return;
@@ -1530,7 +1727,8 @@
 		link.textContent = t("download");
 		$("#pullFileResult").classList.remove("hidden");
 		$("#pullTextResult").classList.add("hidden");
-		$("#pullMeta").textContent = `${t("p2pDone")} · ${t("metaSize")}: ${humanSize(blob.size)}`;
+		updateP2PStatus("pull", `${t("p2pDone")} · ${t("metaSize")}: ${humanSize(blob.size)}`, false, "");
+		scheduleP2PDiagnostic(p2pState, "pull");
 		toast(t("p2pDone"), "success");
 	}
 
@@ -1839,6 +2037,7 @@
 	document.addEventListener("keydown", (e) => {
 		if (e.key === "Escape") {
 			closeQrModal();
+			closeSettingsPanel();
 			return;
 		}
 		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {

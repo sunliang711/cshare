@@ -136,12 +136,16 @@ func (s *P2PService) WaitMessages(ctx context.Context, sessionID string, to stri
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
 
+	waiting := false
 	for {
 		s.mu.Lock()
 		s.cleanupExpiredLocked(time.Now().Unix())
 		session := s.sessions[sessionID]
 		if session == nil {
 			s.mu.Unlock()
+			if waiting {
+				return []model.P2PMessage{}, nil
+			}
 			return nil, apperr.ErrNotFound
 		}
 
@@ -160,6 +164,7 @@ func (s *P2PService) WaitMessages(ctx context.Context, sessionID string, to stri
 		case <-timer.C:
 			return []model.P2PMessage{}, nil
 		case <-updated:
+			waiting = true
 		}
 	}
 }

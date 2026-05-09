@@ -1583,6 +1583,7 @@ body {
 
 .push-more[open] {
 	z-index: 25;
+	margin-bottom: 3.75rem;
 }
 
 .push-more > summary {
