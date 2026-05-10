@@ -14,6 +14,9 @@
 			push: "发送",
 			pull: "接收",
 			sendPanelSubtitle: "选择内容类型",
+			sendPanelCollapsedTitle: "发送信息已收起",
+			expandSendPanel: "展开发送信息",
+			collapseSendPanel: "收起发送信息",
 			receivePanelSubtitle: "输入 Key 或打开分享链接",
 			openTextInput: "展开文本输入",
 			selectedFiles: "已选文件",
@@ -34,17 +37,16 @@
 			copy: "复制",
 			copyLink: "复制链接",
 			showQr: "查看二维码",
-			details: "详情",
-			hideDetails: "收起详情",
 			shareQr: "分享二维码",
 			close: "关闭",
 			cancel: "取消",
 			saveToServer: "存到服务器",
-			cleanup: "清理",
+			cleanup: "清除结果",
 			moreActions: "更多操作",
 			moreSettings: "更多设置",
 			enterKey: "输入 Key",
-			deleteAfterPull: "拉取后删除",
+			deleteAfterPull: "一次性拉取",
+			deleteAfterPullHint: "拉取成功后删除服务端内容",
 			textContent: "文本内容",
 			download: "下载",
 			clear: "清除",
@@ -114,6 +116,9 @@
 			push: "Send",
 			pull: "Receive",
 			sendPanelSubtitle: "Choose content type",
+			sendPanelCollapsedTitle: "Send info collapsed",
+			expandSendPanel: "Expand send info",
+			collapseSendPanel: "Collapse send info",
 			receivePanelSubtitle: "Enter a key or open a share link",
 			openTextInput: "Open text input",
 			selectedFiles: "Selected files",
@@ -134,17 +139,16 @@
 			copy: "Copy",
 			copyLink: "Copy Link",
 			showQr: "QR Code",
-			details: "Details",
-			hideDetails: "Hide details",
 			shareQr: "Share QR Code",
 			close: "Close",
 			cancel: "Cancel",
 			saveToServer: "Save to Server",
-			cleanup: "Clean",
+			cleanup: "Clear result",
 			moreActions: "More actions",
 			moreSettings: "More settings",
 			enterKey: "Enter Key",
-			deleteAfterPull: "Delete after pull",
+			deleteAfterPull: "One-time receive",
+			deleteAfterPullHint: "Delete from server after successful receive",
 			textContent: "Text Content",
 			download: "Download",
 			clear: "Clear",
@@ -247,7 +251,7 @@
 		updatePaperFoldLabel();
 		updateSelectedFilesPreview();
 		updateDirectTransferText();
-		updateQuickResultToggleText();
+		updateSendCardStripText();
 	}
 
 	function toggleLang() {
@@ -334,6 +338,7 @@
 	let paperOpen = false;
 	let modernSendTimer = null;
 	let pendingPaperFoldAfterSend = false;
+	let sendCardManualExpanded = false;
 
 	const p2pIceServers = [
 		{ urls: "stun:stun.l.google.com:19302" },
@@ -361,6 +366,43 @@
 		const isPull = tabName === "pull";
 		stage.classList.toggle("radar-push", !isPull);
 		stage.classList.toggle("radar-pull", isPull);
+	}
+
+	function setSendCardCollapsed(collapsed, manual) {
+		const card = $(".send-card");
+		const toggle = $("#sendCardToggle");
+		if (!card || !toggle) return;
+		if (manual) {
+			sendCardManualExpanded = !collapsed;
+		}
+		card.classList.toggle("collapsed", collapsed);
+		toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+		updateSendCardStripText();
+	}
+
+	function autoCollapseSendCard() {
+		if (sendCardManualExpanded) return false;
+		setSendCardCollapsed(true, false);
+		return true;
+	}
+
+	function expandSendCardForUser() {
+		setSendCardCollapsed(false, true);
+	}
+
+	function resetSendCardAutoState(expand) {
+		sendCardManualExpanded = false;
+		if (expand) {
+			setSendCardCollapsed(false, false);
+		}
+	}
+
+	function updateSendCardStripText() {
+		const toggle = $("#sendCardToggle");
+		if (!toggle) return;
+		const collapsed = $(".send-card")?.classList.contains("collapsed");
+		toggle.title = collapsed ? t("expandSendPanel") : t("collapseSendPanel");
+		toggle.setAttribute("aria-label", collapsed ? t("expandSendPanel") : t("collapseSendPanel"));
 	}
 
 	(function autoPullFromURL() {
@@ -463,8 +505,18 @@
 
 	// ── Push: mode switch ─────────────────────────────────────
 
+	$("#sendCardToggle").addEventListener("click", () => {
+		const collapsed = $(".send-card")?.classList.contains("collapsed");
+		if (collapsed) {
+			expandSendCardForUser();
+		} else {
+			setSendCardCollapsed(true, false);
+		}
+	});
+
 	$$(".mode").forEach((btn) => {
 		btn.addEventListener("click", () => {
+			resetSendCardAutoState(true);
 			$$(".mode").forEach((b) => b.classList.remove("active"));
 			btn.classList.add("active");
 			const isText = btn.dataset.mode === "text";
@@ -504,10 +556,14 @@
 	}
 
 	$$(".transfer").forEach((btn) => {
-		btn.addEventListener("click", () => setTransferMode(btn.dataset.transfer));
+		btn.addEventListener("click", () => {
+			resetSendCardAutoState(true);
+			setTransferMode(btn.dataset.transfer);
+		});
 	});
 
 	$("#directTransferToggle").addEventListener("change", (e) => {
+		resetSendCardAutoState(true);
 		setTransferMode(e.target.checked ? "smart" : "server");
 	});
 
@@ -576,6 +632,7 @@
 	}
 
 	function addSelectedFiles(files) {
+		resetSendCardAutoState(true);
 		const seen = new Set(selectedFiles.map(fileSignature));
 		for (const file of Array.from(files)) {
 			const sig = fileSignature(file);
@@ -638,6 +695,7 @@
 	}
 
 	function clearSelectedFile() {
+		resetSendCardAutoState(true);
 		selectedFiles = [];
 		fileInput.value = "";
 		updateSelectedFilesPreview();
@@ -648,6 +706,7 @@
 
 	function removeSelectedFile(index) {
 		if (index < 0 || index >= selectedFiles.length) return;
+		resetSendCardAutoState(true);
 		selectedFiles.splice(index, 1);
 		fileInput.value = "";
 		updateDropZoneState();
@@ -778,6 +837,7 @@
 	$("#paperCollapse").addEventListener("click", () => setPaperOpen(false, false));
 
 	$("#pushText").addEventListener("input", () => {
+		resetSendCardAutoState(false);
 		if (interactionMode === "modern" && $("#pushText").value.trim()) {
 			setPaperOpen(true, false);
 		}
@@ -804,6 +864,7 @@
 		const isText = $(".mode.active").dataset.mode === "text";
 
 		try {
+			resetSendCardAutoState(false);
 			const input = getPushInput(isText);
 			if (!input) return;
 			const pushMore = $(".push-more");
@@ -812,7 +873,7 @@
 			btn.disabled = true;
 			btn.textContent = t("pushing");
 			triggerModernSendAnimation(input.type);
-			clearPushResult();
+			clearPushResult(false);
 
 			if (transferMode === "smart" && input.type === "files") {
 				await pushToServer(input);
@@ -831,6 +892,7 @@
 
 			await pushToServer(input);
 		} catch (e) {
+			resetSendCardAutoState(true);
 			toast(t("reqFail") + ": " + e.message, "error");
 		} finally {
 			delete btn.dataset.busy;
@@ -845,6 +907,7 @@
 		if (isText) {
 			const text = $("#pushText").value;
 			if (!text.trim()) {
+				resetSendCardAutoState(true);
 				toast(t("enterText"), "error");
 				return null;
 			}
@@ -858,6 +921,7 @@
 		}
 
 		if (!selectedFiles.length) {
+			resetSendCardAutoState(true);
 			toast(t("selectFile"), "error");
 			return null;
 		}
@@ -876,16 +940,16 @@
 		};
 	}
 
-	function clearPushResult() {
+	function clearPushResult(resetSendCard = true) {
 		stopCountdown();
 		currentResult = { mode: "", key: "", url: "" };
 		$("#resultKey").textContent = "";
 		$("#resultMeta").textContent = "";
 		$("#pushResult").classList.add("hidden");
-		$("#pushQuickResult").classList.add("hidden");
-		$("#quickResultValue").textContent = "";
-		updateQuickResultToggleText();
 		setPushResultActions("");
+		if (resetSendCard) {
+			resetSendCardAutoState(true);
+		}
 	}
 
 	async function pushToServer(input) {
@@ -897,6 +961,7 @@
 			toast(t("pushOk"), "success");
 			foldPaperAfterPush(input);
 		} catch (e) {
+			resetSendCardAutoState(true);
 			toast(`${t("pushFail")}: ${e.message}`, "error");
 		}
 	}
@@ -954,26 +1019,12 @@
 			meta += ` · ${t("metaStored")}: ${humanSize(r.stored_size)}`;
 		}
 		$("#resultMeta").textContent = meta;
-		$("#pushResult").classList.add("hidden");
-		renderQuickPushResult("server", t("pushOk"), `Key: ${r.key}`);
 		setPushResultActions("server");
+		autoCollapseSendCard();
+		$("#pushResult").classList.remove("hidden");
 
 		// Start countdown timer
 		startCountdown(r.expire_at || Math.floor(Date.now() / 1000) + r.ttl);
-	}
-
-	function renderQuickPushResult(mode, status, value) {
-		$("#quickResultStatus").textContent = status;
-		$("#quickResultValue").textContent = value || "";
-		$("#pushQuickResult").classList.remove("hidden");
-		setPushResultActions(mode);
-		updateQuickResultToggleText();
-		requestAnimationFrame(() => {
-			$("#pushQuickResult").scrollIntoView({
-				behavior: "smooth",
-				block: "nearest",
-			});
-		});
 	}
 
 	function supportsP2P() {
@@ -992,11 +1043,6 @@
 		$("#cleanupServerPush").classList.toggle("hidden", mode !== "server");
 		$("#saveToServer").classList.toggle("hidden", mode !== "p2p");
 		$("#cancelP2p").classList.toggle("hidden", mode !== "p2p");
-		$("#quickCopyKey").classList.toggle("hidden", mode !== "server");
-		$("#quickCopyLink").classList.toggle("hidden", !hasShareLink);
-		$("#quickShowQr").classList.toggle("hidden", !hasShareLink);
-		$("#quickToggleResult").classList.toggle("hidden", mode !== "server");
-		updateQuickResultToggleText();
 	}
 
 	function updateP2PStatus(target, message, active, detail) {
@@ -1008,6 +1054,10 @@
 			state.statusDetail = detail;
 		}
 		renderP2PStatus(target, message, active, detail, state?.startedAt, state?.p2pDiagnostic);
+		if (target === "push" && active) {
+			$("#pushResult").classList.remove("hidden");
+			autoCollapseSendCard();
+		}
 		if (!state) return;
 
 		if (active && !state.statusTimer) {
@@ -1185,6 +1235,7 @@
 		});
 		const data = await resp.json();
 		if (data.code !== 0) {
+			resetSendCardAutoState(true);
 			toast(`${t("pushFail")}: ${data.msg}`, "error");
 			return;
 		}
@@ -1194,7 +1245,6 @@
 		currentResult = { mode: "p2p", key: sessionID, url: shareUrl };
 		$("#resultKey").textContent = t("p2pLinkLabel");
 		$("#pushResult").classList.remove("hidden");
-		renderQuickPushResult("p2p", t("p2pLinkLabel"), t("p2pWaiting"));
 		setPushResultActions("p2p");
 
 		p2pState = {
@@ -1225,6 +1275,7 @@
 
 		pollP2PMessages("sender");
 		updateP2PStatus("push", t("p2pWaiting"), true, shareUrl);
+		autoCollapseSendCard();
 		await startP2PSenderAttempt("lan");
 		toast(t("p2pWaiting"), "success");
 		foldPaperAfterPush(input);
@@ -1345,8 +1396,9 @@
 		state.transferDone = true;
 		state.stopped = true;
 		setPushResultActions("p2pDone");
-		renderQuickPushResult("p2pDone", t("p2pSent"), t("p2pNotStored"));
 		updateP2PStatus("push", t("p2pNotStored"), false, currentResult.url);
+		$("#pushResult").classList.remove("hidden");
+		autoCollapseSendCard();
 		toast(t("p2pSent"), "success");
 		foldPaperAfterPush(input);
 	}
@@ -1366,6 +1418,7 @@
 
 	function markP2PFailed() {
 		if (!p2pState || p2pState.transferDone) return;
+		resetSendCardAutoState(true);
 		updateP2PStatus("push", t("p2pFailed"), false, currentResult.url);
 		if (p2pState.transferStarted || p2pState.connected) {
 			toast(t("p2pFailed"), "error");
@@ -1393,6 +1446,7 @@
 			foldPaperAfterPush(state.input);
 		} catch (e) {
 			state.fallbackStarted = false;
+			resetSendCardAutoState(true);
 			updateP2PStatus("push", t("p2pFailed"), false, currentResult.url);
 			toast(`${t("pushFail")}: ${e.message}`, "error");
 		}
@@ -1632,62 +1686,12 @@
 		$("#qrModal").classList.remove("hidden");
 	}
 
-	function togglePushResultDetails() {
-		if (!currentResult.mode) return;
-		const result = $("#pushResult");
-		const shouldShow = result.classList.contains("hidden");
-		result.classList.toggle("hidden", !shouldShow);
-		updateQuickResultToggleText();
-		if (shouldShow) {
-			requestAnimationFrame(() => {
-				result.scrollIntoView({
-					behavior: "smooth",
-					block: "nearest",
-				});
-			});
-		}
-	}
-
-	function updateQuickResultToggleText() {
-		const btn = $("#quickToggleResult");
-		if (!btn) return;
-		btn.textContent = $("#pushResult").classList.contains("hidden")
-			? t("details")
-			: t("hideDetails");
-	}
-
 	$("#copyKey").addEventListener("click", copyCurrentKey);
 	$("#copyLink").addEventListener("click", copyCurrentLink);
 	$("#showQr").addEventListener("click", showCurrentQr);
-	$("#quickCopyKey").addEventListener("click", copyCurrentKey);
-	$("#quickCopyLink").addEventListener("click", copyCurrentLink);
-	$("#quickShowQr").addEventListener("click", showCurrentQr);
-	$("#quickToggleResult").addEventListener("click", togglePushResultDetails);
 
-	$("#cleanupServerPush").addEventListener("click", async () => {
-		if (currentResult.mode !== "server" || !currentResult.key) return;
-
-		const btn = $("#cleanupServerPush");
-		btn.disabled = true;
-
-		try {
-			const resp = await fetch(apiUrl("/pull/" + currentResult.key), {
-				method: "DELETE",
-				headers: authHeaders(),
-			});
-			const data = await resp.json();
-			if (data.code !== 0) {
-				toast(`${t("deleteFail")}: ${data.msg}`, "error");
-				return;
-			}
-
-			clearPushResult();
-			toast(t("deleteOk"), "success");
-		} catch (e) {
-			toast(t("reqFail") + ": " + e.message, "error");
-		} finally {
-			btn.disabled = false;
-		}
+	$("#cleanupServerPush").addEventListener("click", () => {
+		clearPushResult();
 	});
 
 	function closeQrModal() {

@@ -102,6 +102,22 @@
 
 				<section id="pushTab" class="tab-content active">
 					<div class="content-card send-card">
+						<button
+							type="button"
+							id="sendCardToggle"
+							class="send-card-strip"
+							data-i18n-title="expandSendPanel"
+							data-i18n-aria-label="expandSendPanel"
+							title="展开发送信息"
+							aria-label="展开发送信息"
+							aria-expanded="true"
+						>
+							<span class="send-card-strip-icon" aria-hidden="true"></span>
+							<span class="send-card-strip-text">
+								<span data-i18n="sendPanelCollapsedTitle">发送信息已收起</span>
+							</span>
+						</button>
+
 						<div class="panel-heading">
 							<p data-i18n="sendPanelSubtitle">选择内容类型</p>
 						</div>
@@ -276,51 +292,6 @@
 								</label>
 							</div>
 
-							<div
-								id="pushQuickResult"
-								class="quick-result hidden"
-								aria-live="polite"
-							>
-								<div class="quick-result-main">
-									<span class="quick-result-dot" aria-hidden="true"></span>
-									<span id="quickResultStatus">发送成功</span>
-									<code id="quickResultValue"></code>
-								</div>
-								<div class="quick-result-actions">
-									<button
-										type="button"
-										class="quick-result-action hidden"
-										id="quickCopyKey"
-										data-i18n="copy"
-									>
-										复制
-									</button>
-									<button
-										type="button"
-										class="quick-result-action"
-										id="quickCopyLink"
-										data-i18n="copyLink"
-									>
-										复制链接
-									</button>
-									<button
-										type="button"
-										class="quick-result-action"
-										id="quickShowQr"
-										data-i18n="showQr"
-									>
-										查看二维码
-									</button>
-									<button
-										type="button"
-										class="quick-result-action hidden"
-										id="quickToggleResult"
-									>
-										详情
-									</button>
-								</div>
-							</div>
-
 							<details class="push-more">
 								<summary data-i18n="moreSettings">更多设置</summary>
 								<div class="options-row">
@@ -370,7 +341,7 @@
 									id="cleanupServerPush"
 									data-i18n="cleanup"
 								>
-									清理
+									清除结果
 								</button>
 								<button
 									class="btn btn-sm hidden"
@@ -427,16 +398,21 @@
 										接收
 									</button>
 								</div>
+								<label class="checkbox receive-option">
+									<input type="checkbox" id="deleteAfterPull" />
+									<span>
+										<strong data-i18n="deleteAfterPull">一次性拉取</strong>
+										<small data-i18n="deleteAfterPullHint">
+											拉取成功后删除服务端内容
+										</small>
+									</span>
+								</label>
 							</div>
 						</div>
 
 						<details class="pull-more">
 							<summary data-i18n="moreActions">更多操作</summary>
 							<div class="pull-actions">
-								<label class="checkbox">
-									<input type="checkbox" id="deleteAfterPull" />
-									<span data-i18n="deleteAfterPull">拉取后删除</span>
-								</label>
 								<button
 									class="btn btn-ghost"
 									id="clearPull"
