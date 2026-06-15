@@ -8,16 +8,49 @@
 		/>
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="theme-color" content="#f7f8fb" id="metaThemeColor" />
+		<meta name="theme-color" content="#ffffff" id="metaThemeColor" />
+		<meta name="color-scheme" content="light dark" />
 		<title>CrossShare</title>
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<script>
+			(function () {
+				var theme = "light";
+				try {
+					var storedTheme = window.localStorage.getItem("cs_theme");
+					if (storedTheme === "dark" || storedTheme === "light") {
+						theme = storedTheme;
+					}
+				} catch (error) {
+					theme = "light";
+				}
+				document.documentElement.dataset.theme = theme;
+				document.documentElement.style.colorScheme = theme;
+				window.__CS_INITIAL_THEME__ = theme;
+				var metaThemeColor = document.getElementById("metaThemeColor");
+				if (metaThemeColor) {
+					metaThemeColor.content = theme === "dark" ? "#101010" : "#ffffff";
+				}
+			})();
+		</script>
+		<style>
+			html {
+				background: #ffffff;
+				color-scheme: light;
+			}
+
+			html[data-theme="dark"] {
+				background: #101010;
+				color-scheme: dark;
+			}
+		</style>
+		<link rel="icon" type="image/png" href="/logo.png" />
+		<link rel="apple-touch-icon" href="/logo.png" />
 		<link rel="stylesheet" href="style.css" />
 	</head>
 	<body>
 		<div class="app-shell">
 			<header class="app-header">
 				<a class="brand" href="/" aria-label="CrossShare">
-					<img src="/favicon.svg" alt="" />
+					<img src="/logo.png" alt="" />
 					<div>
 						<h1>CrossShare</h1>
 						<p class="subtitle" data-i18n="subtitle">
@@ -88,84 +121,82 @@
 				</div>
 			</div>
 
-			<main class="radar-stage radar-push">
-				<div class="radar-rings" aria-hidden="true"></div>
-
-				<nav class="tabs">
-					<button class="tab active" data-tab="push" data-i18n="push">
+			<main class="workspace-stage workspace-push">
+				<nav class="tabs" role="tablist" aria-label="CrossShare mode">
+					<button
+						class="tab active"
+						id="pushTabButton"
+						type="button"
+						role="tab"
+						aria-selected="true"
+						aria-controls="pushTab"
+						data-tab="push"
+						data-i18n="push"
+					>
 						推送
 					</button>
-					<button class="tab" data-tab="pull" data-i18n="pull">
+					<button
+						class="tab"
+						id="pullTabButton"
+						type="button"
+						role="tab"
+						aria-selected="false"
+						aria-controls="pullTab"
+						data-tab="pull"
+						data-i18n="pull"
+					>
 						拉取
 					</button>
 				</nav>
 
-				<section id="pushTab" class="tab-content active">
+				<section
+					id="pushTab"
+					class="tab-content active"
+					role="tabpanel"
+					aria-labelledby="pushTabButton"
+				>
 					<div class="content-card send-card">
-						<button
-							type="button"
-							id="sendCardToggle"
-							class="send-card-strip"
-							data-i18n-title="expandSendPanel"
-							data-i18n-aria-label="expandSendPanel"
-							title="展开发送信息"
-							aria-label="展开发送信息"
-							aria-expanded="true"
-						>
-							<span class="send-card-strip-icon" aria-hidden="true"></span>
-							<span class="send-card-strip-text">
-								<span data-i18n="sendPanelCollapsedTitle">发送信息已收起</span>
-							</span>
-						</button>
-
-						<div class="panel-heading">
-							<p data-i18n="sendPanelSubtitle">选择内容类型</p>
+						<div class="product-chrome">
+							<div class="chrome-caption">
+								<span class="chrome-dots" aria-hidden="true">
+									<span></span>
+									<span></span>
+									<span></span>
+								</span>
+								<p data-i18n="sendPanelSubtitle">发送内容</p>
+							</div>
+							<div class="chrome-actions">
+								<span class="chrome-status">
+									<span class="status-dot" aria-hidden="true"></span>
+									<span data-i18n="readyStatus">就绪</span>
+								</span>
+							</div>
 						</div>
 
-						<div class="mode-switch">
-							<button
-								class="mode active"
-								data-mode="text"
-								data-i18n="text"
-							>
-								文本
-							</button>
-							<button class="mode" data-mode="file" data-i18n="file">
-								文件
-							</button>
-						</div>
-
-						<div class="share-orb">
-							<div id="textMode" class="orb-content">
+						<div class="panel-body">
+							<div class="mode-switch">
 								<button
-									type="button"
-									id="paperPrompt"
-									class="paper-fold"
-									aria-controls="pushText"
-									data-i18n-title="openTextInput"
-									data-i18n-aria-label="openTextInput"
-									title="展开文本输入"
-									aria-label="展开文本输入"
+									class="mode active"
+									data-mode="text"
+									data-i18n="text"
 								>
-									<span class="folded-paper" aria-hidden="true">
-										<span class="paper-sheet"></span>
-										<span class="paper-preview"></span>
-										<span class="paper-count"></span>
-									</span>
+									文本
 								</button>
-								<div class="paper-editor">
-									<label class="orb-label" for="pushText" data-i18n="textContent">
-										文本内容
-									</label>
-									<button
-										type="button"
-										id="paperCollapse"
-										class="paper-collapse"
-										data-i18n-title="collapsePaper"
-										data-i18n-aria-label="collapsePaper"
-										title="收起信纸"
-										aria-label="收起信纸"
-									></button>
+								<button class="mode" data-mode="file" data-i18n="file">
+									文件
+								</button>
+							</div>
+							<div id="textMode" class="mode-panel">
+								<div class="text-editor">
+									<div class="editor-meta">
+										<label class="field-label" for="pushText" data-i18n="textContent">
+											文本内容
+										</label>
+										<div class="meta-pills" aria-hidden="true">
+											<span data-i18n="textEncoding">UTF-8</span>
+											<span data-i18n="localInput">本地输入</span>
+										</div>
+									</div>
 									<textarea
 										id="pushText"
 										data-i18n-placeholder="pushPlaceholder"
@@ -175,92 +206,98 @@
 								</div>
 							</div>
 
-							<div id="fileMode" class="orb-content hidden">
-								<div class="drop-zone" id="dropZone">
-									<span class="package-visual" aria-hidden="true">
-										<span class="package-lid"></span>
-										<span class="package-box"></span>
-										<span class="package-file-stack">
-											<span class="package-file package-file-back package-file-back-2"></span>
-											<span class="package-file package-file-back package-file-back-1"></span>
-											<span class="package-file package-file-main">
-												<span class="package-file-name" id="packageFileName"></span>
-												<span class="package-file-size" id="packageFileSize"></span>
-											</span>
-										</span>
-									</span>
-									<button
-										type="button"
-										id="clearFile"
-										class="file-clear hidden"
-										data-i18n-title="clear"
-										data-i18n-aria-label="clear"
-										title="清除"
-										aria-label="清除"
-									>
-										<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-											<path d="M6 6l12 12" />
-											<path d="M18 6L6 18" />
-										</svg>
-									</button>
-									<span class="drop-icon" aria-hidden="true">
-										<svg
-											class="drop-icon-upload"
-											viewBox="0 0 24 24"
-											fill="none"
-										>
-											<path d="M12 16V5" />
-											<path d="M8 9l4-4 4 4" />
-											<path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
-										</svg>
-										<svg
-											class="drop-icon-ready"
-											viewBox="0 0 24 24"
-											fill="none"
-										>
-											<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-											<path d="M14 3v5h5" />
-											<path d="M9 14l2 2 4-4" />
-										</svg>
-									</span>
-									<p id="dropTitle" data-i18n="dropHint">拖拽文件到这里</p>
-									<span
-										id="dropSubtitle"
-										class="drop-subtitle"
-										data-i18n="dropSubHint"
-									>
-										或点击选择文件
-									</span>
-									<ul
-										id="selectedFileList"
-										class="selected-file-list hidden"
-										data-i18n-aria-label="selectedFiles"
-										aria-label="已选文件"
+							<div id="fileMode" class="mode-panel hidden">
+								<div class="file-uploader">
+									<div class="file-upload-empty">
+										<div class="drop-zone file-upload-strip" id="dropZone">
+											<div class="file-uploader-empty-copy">
+												<span class="drop-icon" aria-hidden="true">
+													<svg
+														class="drop-icon-upload"
+														viewBox="0 0 24 24"
+														fill="none"
+													>
+														<path d="M12 16V5" />
+														<path d="M8 9l4-4 4 4" />
+														<path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+													</svg>
+												</span>
+												<div>
+													<p id="dropTitle" data-i18n="dropHint">拖拽文件到这里</p>
+													<span
+														id="dropSubtitle"
+														class="drop-subtitle"
+														data-i18n="dropSubHint"
+													>
+														或点击选择文件
+													</span>
+												</div>
+											</div>
+											<button
+												type="button"
+												id="addFilesBtn"
+												class="btn btn-sm file-add-btn"
+												data-i18n="addFiles"
+											>
+												添加文件
+											</button>
+										</div>
+									</div>
+
+									<section
+										id="fileSelection"
+										class="file-selection hidden"
 										aria-live="polite"
-									></ul>
-									<input type="file" id="fileInput" multiple />
+									>
+										<div class="file-selection-header">
+											<div class="file-selection-copy">
+												<p id="selectedFileSummary" class="field-label">
+													已选文件
+												</p>
+												<span id="selectedFileTotal" class="file-selection-total"></span>
+											</div>
+											<div class="file-selection-actions">
+												<button
+													type="button"
+													id="addMoreFiles"
+													class="btn btn-sm btn-ghost file-add-btn"
+													data-i18n="addMoreFiles"
+												>
+													继续添加
+												</button>
+												<button
+													type="button"
+													id="clearFile"
+													class="btn btn-sm btn-ghost file-clear hidden"
+													data-i18n="clear"
+													data-i18n-title="clear"
+													data-i18n-aria-label="clear"
+													title="清除"
+													aria-label="清除"
+												>
+													清除
+												</button>
+											</div>
+										</div>
+										<ul
+											id="selectedFileList"
+											class="selected-file-list hidden"
+											data-i18n-aria-label="selectedFiles"
+											aria-label="已选文件"
+										></ul>
+									</section>
+									<input
+										type="file"
+										id="fileInput"
+										multiple
+										aria-labelledby="dropTitle selectedFileSummary"
+										aria-describedby="dropSubtitle selectedFileTotal"
+									/>
 								</div>
 							</div>
 						</div>
 
 						<div class="action-dock">
-							<div class="transfer-switch">
-								<button
-									class="transfer active"
-									data-transfer="smart"
-									data-i18n="smartTransfer"
-								>
-									直连优先
-								</button>
-								<button
-									class="transfer"
-									data-transfer="server"
-									data-i18n="serverTransfer"
-								>
-									服务器暂存
-								</button>
-							</div>
-
 							<div class="send-row">
 								<button
 									class="btn btn-primary btn-block"
@@ -363,22 +400,33 @@
 					</div>
 				</section>
 
-				<section id="pullTab" class="tab-content">
+				<section
+					id="pullTab"
+					class="tab-content"
+					role="tabpanel"
+					aria-labelledby="pullTabButton"
+				>
 					<div class="content-card receive-card">
-						<div class="panel-heading">
-							<p data-i18n="receivePanelSubtitle">输入 Key 或打开分享链接</p>
-						</div>
-
-						<div class="pull-orb">
-							<div class="safe-visual" aria-hidden="true">
-								<span class="safe-content"></span>
-								<span class="safe-door">
-									<span class="safe-dial"></span>
-									<span class="safe-handle"></span>
+						<div class="product-chrome">
+							<div class="chrome-caption">
+								<span class="chrome-dots" aria-hidden="true">
+									<span></span>
+									<span></span>
+									<span></span>
+								</span>
+								<p data-i18n="receivePanelSubtitle">接收内容</p>
+							</div>
+							<div class="chrome-actions">
+								<span class="chrome-status">
+									<span class="status-dot" aria-hidden="true"></span>
+									<span data-i18n="readyStatus">就绪</span>
 								</span>
 							</div>
+						</div>
+
+						<div class="panel-body">
 							<div class="pull-control">
-								<label class="orb-label" for="pullKey" data-i18n="enterKey">
+								<label class="field-label" for="pullKey" data-i18n="enterKey">
 									输入 Key
 								</label>
 								<div class="pull-input">

@@ -13,18 +13,21 @@
 			checkConn: "检查连接",
 			push: "发送",
 			pull: "接收",
-			sendPanelSubtitle: "选择内容类型",
-			sendPanelCollapsedTitle: "发送信息已收起",
-			expandSendPanel: "展开发送信息",
-			collapseSendPanel: "收起发送信息",
-			receivePanelSubtitle: "输入 Key 或打开分享链接",
-			openTextInput: "展开文本输入",
+			sendPanelSubtitle: "发送内容",
+			receivePanelSubtitle: "接收内容",
+			readyStatus: "就绪",
+			textEncoding: "UTF-8",
+			localInput: "本地输入",
 			selectedFiles: "已选文件",
+			addFiles: "添加文件",
+			addMoreFiles: "继续添加",
+			selectedTotal: "总计",
+			fileTypeImage: "图片",
+			filePreview: "文件预览",
 			removeFile: "移除文件",
 			text: "文本",
 			file: "文件",
 			pushPlaceholder: "输入要分享的文本内容…",
-			collapsePaper: "收起信纸",
 			dropHint: "拖拽文件到这里",
 			dropSubHint: "或点击选择文件",
 			dropReady: "文件已选择",
@@ -115,18 +118,21 @@
 			checkConn: "Test Connection",
 			push: "Send",
 			pull: "Receive",
-			sendPanelSubtitle: "Choose content type",
-			sendPanelCollapsedTitle: "Send info collapsed",
-			expandSendPanel: "Expand send info",
-			collapseSendPanel: "Collapse send info",
-			receivePanelSubtitle: "Enter a key or open a share link",
-			openTextInput: "Open text input",
+			sendPanelSubtitle: "Send content",
+			receivePanelSubtitle: "Receive content",
+			readyStatus: "Ready",
+			textEncoding: "UTF-8",
+			localInput: "Local input",
 			selectedFiles: "Selected files",
+			addFiles: "Add files",
+			addMoreFiles: "Add more",
+			selectedTotal: "Total",
+			fileTypeImage: "Image",
+			filePreview: "File preview",
 			removeFile: "Remove file",
 			text: "Text",
 			file: "File",
 			pushPlaceholder: "Enter text to share…",
-			collapsePaper: "Collapse letter",
 			dropHint: "Drop files here",
 			dropSubHint: "or click to choose",
 			dropReady: "File ready",
@@ -248,17 +254,15 @@
 		});
 		// Update html lang attribute
 		document.documentElement.lang = currentLang === "zh" ? "zh-CN" : "en";
-		updatePaperFoldLabel();
 		updateSelectedFilesPreview();
 		updateDirectTransferText();
-		updateSendCardStripText();
 	}
 
 	function toggleLang() {
 		currentLang = currentLang === "zh" ? "en" : "zh";
 		localStorage.setItem("cs_lang", currentLang);
 		applyI18n();
-		updateDropZoneState();
+		updateFileUploaderState();
 		const btn = $("#langToggle");
 		btn.textContent = currentLang === "zh" ? "EN" : "中";
 		btn.title = currentLang === "zh" ? "Switch to English" : "切换到中文";
@@ -266,17 +270,38 @@
 
 	// ── Theme ──────────────────────────────────────────────
 
-	let currentTheme = localStorage.getItem("cs_theme") || "light";
+	function normalizeTheme(theme) {
+		return theme === "dark" || theme === "light" ? theme : "light";
+	}
+
+	function readStoredTheme() {
+		try {
+			return normalizeTheme(localStorage.getItem("cs_theme"));
+		} catch (error) {
+			return "light";
+		}
+	}
+
+	function writeStoredTheme(theme) {
+		try {
+			localStorage.setItem("cs_theme", theme);
+		} catch (error) {
+			// Storage can be unavailable in private or restricted contexts.
+		}
+	}
+
+	let currentTheme = normalizeTheme(window.__CS_INITIAL_THEME__ || readStoredTheme());
 
 	function applyTheme(theme) {
-		currentTheme = theme;
-		document.documentElement.setAttribute("data-theme", theme);
-		localStorage.setItem("cs_theme", theme);
+		currentTheme = normalizeTheme(theme);
+		document.documentElement.setAttribute("data-theme", currentTheme);
+		document.documentElement.style.colorScheme = currentTheme;
+		writeStoredTheme(currentTheme);
 		const btn = $("#themeToggle");
-		btn.textContent = theme === "dark" ? "☀" : "☾";
+		btn.textContent = currentTheme === "dark" ? "☀" : "☾";
 		const metaColor = $("#metaThemeColor");
 		if (metaColor) {
-			metaColor.content = theme === "dark" ? "#0d1117" : "#f7f8fb";
+			metaColor.content = currentTheme === "dark" ? "#101010" : "#ffffff";
 		}
 	}
 
@@ -333,12 +358,10 @@
 	let currentResult = { mode: "", key: "", url: "" };
 	let transferMode = localStorage.getItem("cs_transfer") || "smart";
 	let selectedFiles = [];
+	const filePreviewUrls = new Map();
 	let p2pState = null;
 	let interactionMode = "modern";
-	let paperOpen = false;
 	let modernSendTimer = null;
-	let pendingPaperFoldAfterSend = false;
-	let sendCardManualExpanded = false;
 
 	const p2pIceServers = [
 		{ urls: "stun:stun.l.google.com:19302" },
@@ -360,50 +383,27 @@
 	applyI18n();
 	// ── Auto-pull from URL ?key= ──────────────────────────────
 
-	function setRadarMode(tabName) {
-		const stage = $(".radar-stage");
+	function setWorkspaceMode(tabName) {
+		const stage = $(".workspace-stage");
 		if (!stage) return;
 		const isPull = tabName === "pull";
-		stage.classList.toggle("radar-push", !isPull);
-		stage.classList.toggle("radar-pull", isPull);
+		stage.classList.toggle("workspace-push", !isPull);
+		stage.classList.toggle("workspace-pull", isPull);
 	}
 
-	function setSendCardCollapsed(collapsed, manual) {
-		const card = $(".send-card");
-		const toggle = $("#sendCardToggle");
-		if (!card || !toggle) return;
-		if (manual) {
-			sendCardManualExpanded = !collapsed;
-		}
-		card.classList.toggle("collapsed", collapsed);
-		toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
-		updateSendCardStripText();
+	function setActiveTab(tabName) {
+		$$(".tab").forEach((tab) => {
+			const active = tab.dataset.tab === tabName;
+			tab.classList.toggle("active", active);
+			tab.setAttribute("aria-selected", active ? "true" : "false");
+		});
+		$$(".tab-content").forEach((panel) => {
+			panel.classList.toggle("active", panel.id === `${tabName}Tab`);
+		});
+		setWorkspaceMode(tabName);
 	}
 
-	function autoCollapseSendCard() {
-		if (sendCardManualExpanded) return false;
-		setSendCardCollapsed(true, false);
-		return true;
-	}
-
-	function expandSendCardForUser() {
-		setSendCardCollapsed(false, true);
-	}
-
-	function resetSendCardAutoState(expand) {
-		sendCardManualExpanded = false;
-		if (expand) {
-			setSendCardCollapsed(false, false);
-		}
-	}
-
-	function updateSendCardStripText() {
-		const toggle = $("#sendCardToggle");
-		if (!toggle) return;
-		const collapsed = $(".send-card")?.classList.contains("collapsed");
-		toggle.title = collapsed ? t("expandSendPanel") : t("collapseSendPanel");
-		toggle.setAttribute("aria-label", collapsed ? t("expandSendPanel") : t("collapseSendPanel"));
-	}
+	function resetSendCardAutoState() {}
 
 	(function autoPullFromURL() {
 		const params = new URLSearchParams(window.location.search);
@@ -416,11 +416,7 @@
 		window.history.replaceState(null, "", cleanUrl);
 
 		// Switch to Pull tab
-		$$(".tab").forEach((t) => t.classList.remove("active"));
-		$$(".tab-content").forEach((c) => c.classList.remove("active"));
-		$('.tab[data-tab="pull"]').classList.add("active");
-		$("#pullTab").classList.add("active");
-		setRadarMode("pull");
+		setActiveTab("pull");
 
 		if (p2pSession) {
 			setTimeout(() => startP2PReceive(p2pSession), 0);
@@ -444,15 +440,22 @@
 
 	// ── Event: lang toggle ────────────────────────────────────
 
-	$("#langToggle").addEventListener("click", toggleLang);
+	$("#langToggle").addEventListener("click", () => {
+		closePushMore();
+		toggleLang();
+	});
 
 	// ── Event: theme toggle ───────────────────────────────────
 
-	$("#themeToggle").addEventListener("click", toggleTheme);
+	$("#themeToggle").addEventListener("click", () => {
+		closePushMore();
+		toggleTheme();
+	});
 
 	// ── Event: settings toggle ────────────────────────────────
 
 	$("#settingsToggle").addEventListener("click", () => {
+		closePushMore();
 		$("#settingsPanel").classList.toggle("hidden");
 	});
 
@@ -460,11 +463,23 @@
 		$("#settingsPanel").classList.add("hidden");
 	}
 
+	function closePushMore() {
+		const pushMore = $(".push-more");
+		if (pushMore) pushMore.open = false;
+	}
+
 	document.addEventListener("pointerdown", (e) => {
 		const panel = $("#settingsPanel");
-		if (panel.classList.contains("hidden")) return;
-		if (panel.contains(e.target) || $("#settingsToggle").contains(e.target)) return;
-		closeSettingsPanel();
+		if (!panel.classList.contains("hidden")) {
+			if (!panel.contains(e.target) && !$("#settingsToggle").contains(e.target)) {
+				closeSettingsPanel();
+			}
+		}
+
+		const pushMore = $(".push-more");
+		if (!pushMore?.open) return;
+		if (pushMore.contains(e.target)) return;
+		closePushMore();
 	});
 
 	$("#saveSettings").addEventListener("click", saveSettings);
@@ -495,27 +510,16 @@
 
 	$$(".tab").forEach((tab) => {
 		tab.addEventListener("click", () => {
-			$$(".tab").forEach((t) => t.classList.remove("active"));
-			$$(".tab-content").forEach((c) => c.classList.remove("active"));
-			tab.classList.add("active");
-			$(`#${tab.dataset.tab}Tab`).classList.add("active");
-			setRadarMode(tab.dataset.tab);
+			closePushMore();
+			setActiveTab(tab.dataset.tab);
 		});
 	});
 
 	// ── Push: mode switch ─────────────────────────────────────
 
-	$("#sendCardToggle").addEventListener("click", () => {
-		const collapsed = $(".send-card")?.classList.contains("collapsed");
-		if (collapsed) {
-			expandSendCardForUser();
-		} else {
-			setSendCardCollapsed(true, false);
-		}
-	});
-
 	$$(".mode").forEach((btn) => {
 		btn.addEventListener("click", () => {
+			closePushMore();
 			resetSendCardAutoState(true);
 			$$(".mode").forEach((b) => b.classList.remove("active"));
 			btn.classList.add("active");
@@ -530,9 +534,6 @@
 	function setTransferMode(mode) {
 		transferMode = mode === "server" ? "server" : "smart";
 		localStorage.setItem("cs_transfer", transferMode);
-		$$(".transfer").forEach((btn) => {
-			btn.classList.toggle("active", btn.dataset.transfer === transferMode);
-		});
 		const toggle = $("#directTransferToggle");
 		if (toggle) {
 			toggle.checked = transferMode === "smart";
@@ -555,13 +556,6 @@
 		}
 	}
 
-	$$(".transfer").forEach((btn) => {
-		btn.addEventListener("click", () => {
-			resetSendCardAutoState(true);
-			setTransferMode(btn.dataset.transfer);
-		});
-	});
-
 	$("#directTransferToggle").addEventListener("change", (e) => {
 		resetSendCardAutoState(true);
 		setTransferMode(e.target.checked ? "smart" : "server");
@@ -572,25 +566,47 @@
 	// ── Push: file handling ───────────────────────────────────
 
 	const dropZone = $("#dropZone");
+	const fileUploader = $(".file-uploader");
+	const fileUploadEmpty = $(".file-upload-empty");
+	const fileSelection = $("#fileSelection");
 	const fileInput = $("#fileInput");
+	const addFilesBtn = $("#addFilesBtn");
+	const addMoreFilesBtn = $("#addMoreFiles");
 	fileInput.multiple = true;
 
-	dropZone.addEventListener("dragover", (e) => {
-		e.preventDefault();
-		dropZone.classList.add("dragover");
+	function chooseFiles() {
+		fileInput.click();
+	}
+
+	dropZone.addEventListener("click", (e) => {
+		if (e.target.closest("button")) return;
+		chooseFiles();
 	});
 
-	dropZone.addEventListener("dragleave", () => {
-		dropZone.classList.remove("dragover");
-	});
+	function bindFileDropTarget(target) {
+		target.addEventListener("dragover", (e) => {
+			e.preventDefault();
+			target.classList.add("dragover");
+		});
 
-	dropZone.addEventListener("drop", (e) => {
-		e.preventDefault();
-		dropZone.classList.remove("dragover");
-		if (e.dataTransfer.files.length) {
-			addSelectedFiles(e.dataTransfer.files);
-		}
-	});
+		target.addEventListener("dragleave", () => {
+			target.classList.remove("dragover");
+		});
+
+		target.addEventListener("drop", (e) => {
+			e.preventDefault();
+			target.classList.remove("dragover");
+			if (e.dataTransfer.files.length) {
+				addSelectedFiles(e.dataTransfer.files);
+			}
+		});
+	}
+
+	bindFileDropTarget(dropZone);
+	bindFileDropTarget(fileSelection);
+
+	addFilesBtn.addEventListener("click", chooseFiles);
+	addMoreFilesBtn.addEventListener("click", chooseFiles);
 
 	fileInput.addEventListener("change", () => {
 		if (fileInput.files.length) {
@@ -613,22 +629,19 @@
 		removeSelectedFile(Number(btn.dataset.removeFileIndex));
 	});
 
-	function updateDropZoneState() {
+	function updateFileUploaderState() {
 		const hasFile = selectedFiles.length > 0;
-		dropZone.classList.toggle("has-file", hasFile);
-		dropZone.classList.toggle("has-multiple-files", selectedFiles.length > 1);
-		if (hasFile) {
-			const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-			$("#dropTitle").removeAttribute("data-i18n");
-			$("#dropSubtitle").removeAttribute("data-i18n");
-			$("#dropTitle").textContent = selectedFilesTitle(selectedFiles.length);
-			$("#dropSubtitle").textContent = selectedFilesSubtitle(totalSize);
-			return;
-		}
+		fileUploader.classList.toggle("has-files", hasFile);
+		fileUploader.classList.toggle("is-empty", !hasFile);
+		fileUploadEmpty.classList.toggle("hidden", hasFile);
+		fileSelection.classList.toggle("hidden", !hasFile);
+		dropZone.classList.remove("dragover");
+		fileSelection.classList.remove("dragover");
 		$("#dropTitle").setAttribute("data-i18n", "dropHint");
 		$("#dropSubtitle").setAttribute("data-i18n", "dropSubHint");
 		$("#dropTitle").textContent = t("dropHint");
 		$("#dropSubtitle").textContent = t("dropSubHint");
+		addFilesBtn.textContent = t("addFiles");
 	}
 
 	function addSelectedFiles(files) {
@@ -640,8 +653,8 @@
 			seen.add(sig);
 			selectedFiles.push(file);
 		}
-		updateDropZoneState();
 		updateSelectedFilesPreview();
+		updateFileUploaderState();
 		$("#clearFile").classList.remove("hidden");
 		syncModernPushState();
 	}
@@ -650,30 +663,106 @@
 		return `${file.name}\n${file.size}\n${file.lastModified}`;
 	}
 
+	function revokeUnusedFilePreviewUrls() {
+		const active = new Set(selectedFiles.map(fileSignature));
+		for (const [sig, url] of filePreviewUrls) {
+			if (!active.has(sig)) {
+				URL.revokeObjectURL(url);
+				filePreviewUrls.delete(sig);
+			}
+		}
+	}
+
+	function clearFilePreviewUrls() {
+		for (const url of filePreviewUrls.values()) {
+			URL.revokeObjectURL(url);
+		}
+		filePreviewUrls.clear();
+	}
+
+	function isImageFile(file) {
+		return file.type.startsWith("image/");
+	}
+
+	function fileExtension(file) {
+		const name = file.name || "";
+		const ext = name.includes(".") ? name.split(".").pop() : "";
+		return (ext || "FILE").slice(0, 6).toUpperCase();
+	}
+
+	function fileTypeText(file) {
+		if (isImageFile(file)) return t("fileTypeImage");
+		if (file.type) return file.type;
+		return fileExtension(file);
+	}
+
+	function filePreviewUrl(file) {
+		const sig = fileSignature(file);
+		if (!filePreviewUrls.has(sig)) {
+			filePreviewUrls.set(sig, URL.createObjectURL(file));
+		}
+		return filePreviewUrls.get(sig);
+	}
+
 	function updateSelectedFilesPreview() {
 		const list = $("#selectedFileList");
+		const summary = $("#selectedFileSummary");
+		const total = $("#selectedFileTotal");
+		const packageFileName = $("#packageFileName");
+		const packageFileSize = $("#packageFileSize");
+		revokeUnusedFilePreviewUrls();
 		if (!selectedFiles.length) {
-			$("#packageFileName").textContent = "";
-			$("#packageFileSize").textContent = "";
+			if (packageFileName) packageFileName.textContent = "";
+			if (packageFileSize) packageFileSize.textContent = "";
+			if (summary) summary.textContent = t("selectedFiles");
+			if (total) total.textContent = "";
 			list.replaceChildren();
 			list.classList.add("hidden");
+			clearFilePreviewUrls();
 			return;
 		}
 		const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-		$("#packageFileName").textContent =
-			selectedFiles.length === 1
-				? selectedFiles[0].name
-				: fileCountText(selectedFiles.length);
-		$("#packageFileSize").textContent = humanSize(totalSize);
+		if (summary) summary.textContent = selectedFilesTitle(selectedFiles.length);
+		if (total) total.textContent = `${t("selectedTotal")} ${humanSize(totalSize)}`;
+		if (packageFileName) {
+			packageFileName.textContent =
+				selectedFiles.length === 1
+					? selectedFiles[0].name
+					: fileCountText(selectedFiles.length);
+		}
+		if (packageFileSize) packageFileSize.textContent = humanSize(totalSize);
 		list.replaceChildren();
 		selectedFiles.forEach((file, index) => {
 			const item = document.createElement("li");
 			item.className = "selected-file-item";
 
+			let preview;
+			if (isImageFile(file)) {
+				preview = document.createElement("span");
+				preview.className = "file-preview-thumb";
+				const image = document.createElement("img");
+				image.src = filePreviewUrl(file);
+				image.alt = "";
+				preview.appendChild(image);
+			} else {
+				preview = document.createElement("span");
+				preview.className = "file-preview-tile";
+				preview.textContent = fileExtension(file);
+			}
+			preview.title = t("filePreview");
+			preview.setAttribute("aria-hidden", "true");
+
+			const meta = document.createElement("span");
+			meta.className = "selected-file-meta";
+
 			const name = document.createElement("span");
 			name.className = "selected-file-name";
 			name.textContent = file.name;
 			name.title = file.name;
+
+			const type = document.createElement("span");
+			type.className = "selected-file-type";
+			type.textContent = fileTypeText(file);
 
 			const size = document.createElement("span");
 			size.className = "selected-file-size";
@@ -688,7 +777,8 @@
 			remove.innerHTML =
 				'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>';
 
-			item.append(name, size, remove);
+			meta.append(name, type);
+			item.append(preview, meta, size, remove);
 			list.appendChild(item);
 		});
 		list.classList.remove("hidden");
@@ -698,9 +788,10 @@
 		resetSendCardAutoState(true);
 		selectedFiles = [];
 		fileInput.value = "";
+		clearFilePreviewUrls();
 		updateSelectedFilesPreview();
 		$("#clearFile").classList.add("hidden");
-		updateDropZoneState();
+		updateFileUploaderState();
 		syncModernPushState();
 	}
 
@@ -709,8 +800,8 @@
 		resetSendCardAutoState(true);
 		selectedFiles.splice(index, 1);
 		fileInput.value = "";
-		updateDropZoneState();
 		updateSelectedFilesPreview();
+		updateFileUploaderState();
 		$("#clearFile").classList.toggle(
 			"hidden",
 			!selectedFiles.length || $(".mode.active")?.dataset.mode === "text",
@@ -724,11 +815,7 @@
 			: `${fileCountText(count)} selected`;
 	}
 
-	function selectedFilesSubtitle(totalSize) {
-		return currentLang === "zh"
-			? `总计 ${humanSize(totalSize)}，可继续发送`
-			: `${humanSize(totalSize)} total, ready to send`;
-	}
+	updateFileUploaderState();
 
 	// ── Interaction mode ──────────────────────────────────────
 
@@ -740,50 +827,7 @@
 	}
 
 	function syncModernPushState() {
-		const isText = $(".mode.active")?.dataset.mode === "text";
-		if (interactionMode === "modern" && isText) {
-			setPaperOpen(!!$("#pushText").value.trim(), false);
-		}
-		updatePaperFoldLabel();
 		updateModernReadyState();
-	}
-
-	function setPaperOpen(open, focusText) {
-		const textMode = $("#textMode");
-		const wasOpen = paperOpen;
-		paperOpen = !!open;
-		textMode.classList.remove("paper-folding");
-		textMode.classList.toggle("paper-open", paperOpen);
-		if (wasOpen && !paperOpen) {
-			void textMode.offsetWidth;
-			textMode.classList.add("paper-folding");
-			setTimeout(() => textMode.classList.remove("paper-folding"), 420);
-		}
-		updatePaperFoldLabel();
-		if (paperOpen && focusText) {
-			requestAnimationFrame(() => $("#pushText").focus());
-		}
-	}
-
-	function updatePaperFoldLabel() {
-		const text = $("#pushText")?.value.trim() || "";
-		const preview = $(".paper-preview");
-		const countBadge = $(".paper-count");
-		$("#paperPrompt").classList.toggle("has-paper-text", !!text);
-		if (!text) {
-			if (preview) preview.textContent = "";
-			if (countBadge) countBadge.textContent = "";
-			return;
-		}
-
-		const count = Array.from(text).length;
-		if (countBadge) countBadge.textContent = String(count);
-		if (preview) {
-			const summary = text.replace(/\s+/g, " ");
-			preview.textContent =
-				Array.from(summary).slice(0, 42).join("") +
-				(count > 42 ? "..." : "");
-		}
 	}
 
 	function updateModernReadyState() {
@@ -808,51 +852,18 @@
 			clearTimeout(modernSendTimer);
 			modernSendTimer = null;
 		}
-		if (type === "text") pendingPaperFoldAfterSend = false;
 		target.classList.remove("modern-sending");
 		void target.offsetWidth;
 		target.classList.add("modern-sending");
 		modernSendTimer = setTimeout(() => {
-			if (type === "text" && pendingPaperFoldAfterSend && paperOpen) {
-				setPaperOpen(false, false);
-			}
-			if (type === "text") pendingPaperFoldAfterSend = false;
 			target.classList.remove("modern-sending");
 			modernSendTimer = null;
 		}, 900);
 	}
 
-	function foldPaperAfterPush(input) {
-		if (interactionMode !== "modern" || input?.type !== "text" || !paperOpen) return;
-		const textMode = $("#textMode");
-		if (textMode.classList.contains("modern-sending")) {
-			// 发送动画还在收尾时，先记下收起动作，避免先展开再折叠。
-			pendingPaperFoldAfterSend = true;
-			return;
-		}
-		setPaperOpen(false, false);
-	}
-
-	$("#paperPrompt").addEventListener("click", () => setPaperOpen(true, true));
-	$("#paperCollapse").addEventListener("click", () => setPaperOpen(false, false));
-
 	$("#pushText").addEventListener("input", () => {
 		resetSendCardAutoState(false);
-		if (interactionMode === "modern" && $("#pushText").value.trim()) {
-			setPaperOpen(true, false);
-		}
-		updatePaperFoldLabel();
 		updateModernReadyState();
-	});
-
-	document.addEventListener("pointerdown", (e) => {
-		if (interactionMode !== "modern" || !paperOpen) return;
-		if (!$("#pushTab").classList.contains("active")) return;
-		if ($(".mode.active")?.dataset.mode !== "text") return;
-		if ($("#textMode").contains(e.target)) return;
-		if ($("#pushText").value.trim()) return;
-
-		setPaperOpen(false, false);
 	});
 
 	applyInteractionMode();
@@ -959,7 +970,6 @@
 			const result = await uploadToServer(input);
 			renderServerPushResult(result);
 			toast(t("pushOk"), "success");
-			foldPaperAfterPush(input);
 		} catch (e) {
 			resetSendCardAutoState(true);
 			toast(`${t("pushFail")}: ${e.message}`, "error");
@@ -1012,19 +1022,47 @@
 			url: buildShareUrl(r.key),
 		};
 		$("#resultKey").textContent = r.key;
-		let meta = `${t("metaType")}: ${r.type} · ${t("metaSize")}: ${humanSize(r.size)} · TTL: ${humanDuration(r.ttl)}`;
-		if (r.filename) meta += ` · ${t("metaFile")}: ${r.filename}`;
-		if (r.file_count) meta += ` · ${t("metaFiles")}: ${r.file_count}`;
+		const metaItems = [
+			[t("metaType"), r.type],
+			[t("metaSize"), humanSize(r.size)],
+			["TTL", humanDuration(r.ttl)],
+		];
+		if (r.filename) metaItems.push([t("metaFile"), r.filename]);
+		if (r.file_count) metaItems.push([t("metaFiles"), r.file_count]);
 		if (r.stored_size && r.stored_size !== r.size) {
-			meta += ` · ${t("metaStored")}: ${humanSize(r.stored_size)}`;
+			metaItems.push([t("metaStored"), humanSize(r.stored_size)]);
 		}
-		$("#resultMeta").textContent = meta;
+		renderServerMeta(metaItems);
 		setPushResultActions("server");
-		autoCollapseSendCard();
 		$("#pushResult").classList.remove("hidden");
 
 		// Start countdown timer
 		startCountdown(r.expire_at || Math.floor(Date.now() / 1000) + r.ttl);
+	}
+
+	function createMetaChip(label, value, className) {
+		const chip = document.createElement("span");
+		chip.className = ["receipt-chip", className].filter(Boolean).join(" ");
+		setMetaChipContent(chip, label, value);
+		return chip;
+	}
+
+	function setMetaChipContent(chip, label, value) {
+		const labelEl = document.createElement("span");
+		labelEl.className = "receipt-chip-label";
+		labelEl.textContent = label;
+
+		const valueEl = document.createElement("span");
+		valueEl.className = "receipt-chip-value";
+		valueEl.textContent = value;
+
+		chip.replaceChildren(labelEl, valueEl);
+	}
+
+	function renderServerMeta(items) {
+		const meta = $("#resultMeta");
+		const chips = items.map(([label, value]) => createMetaChip(label, value));
+		meta.replaceChildren(...chips);
 	}
 
 	function supportsP2P() {
@@ -1056,7 +1094,6 @@
 		renderP2PStatus(target, message, active, detail, state?.startedAt, state?.p2pDiagnostic);
 		if (target === "push" && active) {
 			$("#pushResult").classList.remove("hidden");
-			autoCollapseSendCard();
 		}
 		if (!state) return;
 
@@ -1275,10 +1312,8 @@
 
 		pollP2PMessages("sender");
 		updateP2PStatus("push", t("p2pWaiting"), true, shareUrl);
-		autoCollapseSendCard();
 		await startP2PSenderAttempt("lan");
 		toast(t("p2pWaiting"), "success");
-		foldPaperAfterPush(input);
 	}
 
 	async function startP2PSenderAttempt(mode) {
@@ -1398,9 +1433,7 @@
 		setPushResultActions("p2pDone");
 		updateP2PStatus("push", t("p2pNotStored"), false, currentResult.url);
 		$("#pushResult").classList.remove("hidden");
-		autoCollapseSendCard();
 		toast(t("p2pSent"), "success");
-		foldPaperAfterPush(input);
 	}
 
 	function waitDataChannelBuffer(dc) {
@@ -1443,7 +1476,6 @@
 			renderServerPushResult(result);
 			p2pState = null;
 			toast(t("pushOk"), "success");
-			foldPaperAfterPush(state.input);
 		} catch (e) {
 			state.fallbackStarted = false;
 			resetSendCardAutoState(true);
@@ -1870,21 +1902,9 @@
 
 	// ── Pull ──────────────────────────────────────────────────
 
-	function setSafeState(state) {
-		const safe = $(".safe-visual");
-		if (!safe) return;
-		safe.classList.remove("safe-loading", "safe-open", "safe-error");
-		if (!state) return;
-		if (state === "error") {
-			void safe.offsetWidth;
-		}
-		safe.classList.add("safe-" + state);
-	}
-
 	$("#pullBtn").addEventListener("click", async () => {
 		const key = $("#pullKey").value.trim();
 		if (!key) {
-			setSafeState("error");
 			toast(t("enterKeyWarn"), "error");
 			return;
 		}
@@ -1894,7 +1914,6 @@
 		const btn = $("#pullBtn");
 		btn.disabled = true;
 		btn.textContent = t("pulling");
-		setSafeState("loading");
 
 		try {
 			const headers = {
@@ -1914,7 +1933,6 @@
 				if (ct.includes("application/json")) {
 					const data = await jsonResp.json();
 					if (data.code !== 0) {
-						setSafeState("error");
 						toast(`${t("pullFail")}: ${data.msg}`, "error");
 						return;
 					}
@@ -1928,7 +1946,6 @@
 						if (r.deleted) meta += ` · ${t("deleted")}`;
 						$("#pullMeta").textContent = meta;
 						$("#pullResult").classList.remove("hidden");
-						setSafeState("open");
 						toast(t("pullOk"), "success");
 						return;
 					}
@@ -1938,7 +1955,6 @@
 			const streamResp = await fetch(apiUrl("/pull/" + key), { headers });
 			if (!streamResp.ok) {
 				const errData = await streamResp.json().catch(() => null);
-				setSafeState("error");
 				toast(
 					`${t("pullFail")}: ${errData?.msg || "HTTP " + streamResp.status}`,
 					"error",
@@ -1975,18 +1991,14 @@
 			if (deleted) meta += ` · ${t("deleted")}`;
 			$("#pullMeta").textContent = meta;
 			$("#pullResult").classList.remove("hidden");
-			setSafeState("open");
 			toast(t("pullOk"), "success");
 		} catch (e) {
-			setSafeState("error");
 			toast(t("reqFail") + ": " + e.message, "error");
 		} finally {
 			btn.disabled = false;
 			btn.textContent = t("pull");
 		}
 	});
-
-	$("#pullKey").addEventListener("input", () => setSafeState(""));
 
 	$("#clearPull").addEventListener("click", () => {
 		if (p2pState && p2pState.role === "receiver") {
@@ -2005,7 +2017,6 @@
 		$("#pullFileResult").classList.add("hidden");
 		$("#pullMeta").textContent = "";
 		$("#pullResult").classList.add("hidden");
-		setSafeState("");
 	});
 
 	$("#copyText").addEventListener("click", () => {
@@ -2120,30 +2131,31 @@
 
 		let el = $("#countdownDisplay");
 		if (!el) {
-			el = document.createElement("div");
+			el = document.createElement("span");
 			el.id = "countdownDisplay";
-			el.className = "countdown";
+			el.className = "receipt-chip receipt-countdown";
 			const resultMeta = $("#resultMeta");
-			resultMeta.parentNode.insertBefore(el, resultMeta);
+			resultMeta.prepend(el);
 		}
 
 		function update() {
 			const remaining = expireAt - Math.floor(Date.now() / 1000);
+			el.classList.remove("countdown-warning", "countdown-expired");
 			if (remaining <= 0) {
-				el.textContent = t("expired");
+				el.replaceChildren();
+				const valueEl = document.createElement("span");
+				valueEl.className = "receipt-chip-value";
+				valueEl.textContent = t("expired");
+				el.appendChild(valueEl);
 				el.classList.add("countdown-expired");
-				el.classList.remove("countdown-warning");
 				clearInterval(countdownTimer);
 				countdownTimer = null;
 				return;
 			}
-			el.classList.remove("countdown-expired");
 			if (remaining <= 60) {
 				el.classList.add("countdown-warning");
-			} else {
-				el.classList.remove("countdown-warning");
 			}
-			el.textContent = `${t("expiresIn")}: ${humanDuration(remaining)}`;
+			setMetaChipContent(el, t("expiresIn"), humanDuration(remaining));
 		}
 
 		update();
@@ -2165,6 +2177,7 @@
 		if (e.key === "Escape") {
 			closeQrModal();
 			closeSettingsPanel();
+			closePushMore();
 			return;
 		}
 		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
