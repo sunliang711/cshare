@@ -8,10 +8,10 @@
 		/>
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="theme-color" content="#f7f8fb" id="metaThemeColor" />
+		<meta name="theme-color" content="#f7faff" id="metaThemeColor" />
 		<title>CrossShare</title>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="stylesheet" href="style.css" />
+		<link rel="stylesheet" href="style.css?v=20260731" />
 	</head>
 	<body>
 		<div class="app-shell">
@@ -28,18 +28,18 @@
 				<div class="header-actions">
 					<button
 						class="icon-btn"
-						id="langToggle"
-						title="Switch to English"
-					>
-						EN
-					</button>
-					<button
-						class="icon-btn"
 						id="themeToggle"
 						data-i18n-title="toggleTheme"
 						title="切换主题"
 					>
 						☾
+					</button>
+					<button
+						class="icon-btn"
+						id="langToggle"
+						title="Switch to English"
+					>
+						EN
 					</button>
 					<button
 						class="icon-btn"
@@ -88,9 +88,7 @@
 				</div>
 			</div>
 
-			<main class="radar-stage radar-push">
-				<div class="radar-rings" aria-hidden="true"></div>
-
+			<main class="stage">
 				<nav class="tabs">
 					<button class="tab active" data-tab="push" data-i18n="push">
 						推送
@@ -152,6 +150,9 @@
 										<span class="paper-preview"></span>
 										<span class="paper-count"></span>
 									</span>
+									<span class="paper-hint" data-i18n="paperHint">
+										点击输入文本
+									</span>
 								</button>
 								<div class="paper-editor">
 									<label class="orb-label" for="pushText" data-i18n="textContent">
@@ -177,18 +178,6 @@
 
 							<div id="fileMode" class="orb-content hidden">
 								<div class="drop-zone" id="dropZone">
-									<span class="package-visual" aria-hidden="true">
-										<span class="package-lid"></span>
-										<span class="package-box"></span>
-										<span class="package-file-stack">
-											<span class="package-file package-file-back package-file-back-2"></span>
-											<span class="package-file package-file-back package-file-back-1"></span>
-											<span class="package-file package-file-main">
-												<span class="package-file-name" id="packageFileName"></span>
-												<span class="package-file-size" id="packageFileSize"></span>
-											</span>
-										</span>
-									</span>
 									<button
 										type="button"
 										id="clearFile"
@@ -244,22 +233,9 @@
 						</div>
 
 						<div class="action-dock">
-							<div class="transfer-switch">
-								<button
-									class="transfer active"
-									data-transfer="smart"
-									data-i18n="smartTransfer"
-								>
-									直连优先
-								</button>
-								<button
-									class="transfer"
-									data-transfer="server"
-									data-i18n="serverTransfer"
-								>
-									服务器暂存
-								</button>
-							</div>
+							<span class="action-dock-title" data-i18n="sendOptions">
+								发送选项
+							</span>
 
 							<div class="send-row">
 								<button
@@ -286,8 +262,14 @@
 									<span class="toggle-track" aria-hidden="true">
 										<span class="toggle-thumb"></span>
 									</span>
-									<span class="direct-toggle-text" data-i18n="smartTransfer">
-										直连优先
+									<span class="direct-toggle-text">
+										<strong class="direct-toggle-title">直连优先</strong>
+										<small
+											class="direct-toggle-desc"
+											data-i18n="smartTransferDesc"
+										>
+											优先使用设备直连，速度更快
+										</small>
 									</span>
 								</label>
 							</div>
@@ -503,6 +485,6 @@
 		</div>
 
 		<script src="qrcode-lite.js"></script>
-		<script src="app.js"></script>
+		<script src="app.js?v=20260731"></script>
 	</body>
 </html>

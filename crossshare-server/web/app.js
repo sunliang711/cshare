@@ -14,6 +14,10 @@
 			push: "发送",
 			pull: "接收",
 			sendPanelSubtitle: "选择内容类型",
+			paperHint: "点击输入文本",
+			sendOptions: "发送选项",
+			smartTransferDesc: "优先使用设备直连，速度更快",
+			charsUnit: "字符",
 			sendPanelCollapsedTitle: "发送信息已收起",
 			expandSendPanel: "展开发送信息",
 			collapseSendPanel: "收起发送信息",
@@ -116,6 +120,10 @@
 			push: "Send",
 			pull: "Receive",
 			sendPanelSubtitle: "Choose content type",
+			paperHint: "Tap to enter text",
+			sendOptions: "Send Options",
+			smartTransferDesc: "Prefer direct device transfer for better speed",
+			charsUnit: "chars",
 			sendPanelCollapsedTitle: "Send info collapsed",
 			expandSendPanel: "Expand send info",
 			collapseSendPanel: "Collapse send info",
@@ -276,7 +284,7 @@
 		btn.textContent = theme === "dark" ? "☀" : "☾";
 		const metaColor = $("#metaThemeColor");
 		if (metaColor) {
-			metaColor.content = theme === "dark" ? "#0d1117" : "#f7f8fb";
+			metaColor.content = theme === "dark" ? "#0f1624" : "#f7faff";
 		}
 	}
 
@@ -334,7 +342,6 @@
 	let transferMode = localStorage.getItem("cs_transfer") || "smart";
 	let selectedFiles = [];
 	let p2pState = null;
-	let interactionMode = "modern";
 	let paperOpen = false;
 	let modernSendTimer = null;
 	let pendingPaperFoldAfterSend = false;
@@ -359,14 +366,6 @@
 	// Apply saved language
 	applyI18n();
 	// ── Auto-pull from URL ?key= ──────────────────────────────
-
-	function setRadarMode(tabName) {
-		const stage = $(".radar-stage");
-		if (!stage) return;
-		const isPull = tabName === "pull";
-		stage.classList.toggle("radar-push", !isPull);
-		stage.classList.toggle("radar-pull", isPull);
-	}
 
 	function setSendCardCollapsed(collapsed, manual) {
 		const card = $(".send-card");
@@ -420,7 +419,6 @@
 		$$(".tab-content").forEach((c) => c.classList.remove("active"));
 		$('.tab[data-tab="pull"]').classList.add("active");
 		$("#pullTab").classList.add("active");
-		setRadarMode("pull");
 
 		if (p2pSession) {
 			setTimeout(() => startP2PReceive(p2pSession), 0);
@@ -499,7 +497,6 @@
 			$$(".tab-content").forEach((c) => c.classList.remove("active"));
 			tab.classList.add("active");
 			$(`#${tab.dataset.tab}Tab`).classList.add("active");
-			setRadarMode(tab.dataset.tab);
 		});
 	});
 
@@ -530,9 +527,6 @@
 	function setTransferMode(mode) {
 		transferMode = mode === "server" ? "server" : "smart";
 		localStorage.setItem("cs_transfer", transferMode);
-		$$(".transfer").forEach((btn) => {
-			btn.classList.toggle("active", btn.dataset.transfer === transferMode);
-		});
 		const toggle = $("#directTransferToggle");
 		if (toggle) {
 			toggle.checked = transferMode === "smart";
@@ -541,7 +535,7 @@
 	}
 
 	function updateDirectTransferText() {
-		const text = $(".direct-toggle-text");
+		const text = $(".direct-toggle-title");
 		if (!text) return;
 		const key = transferMode === "smart" ? "smartTransfer" : "serverTransfer";
 		text.textContent = t(key);
@@ -554,13 +548,6 @@
 			label.title = transferMode === "smart" ? t("directTransferHint") : t("serverTransfer");
 		}
 	}
-
-	$$(".transfer").forEach((btn) => {
-		btn.addEventListener("click", () => {
-			resetSendCardAutoState(true);
-			setTransferMode(btn.dataset.transfer);
-		});
-	});
 
 	$("#directTransferToggle").addEventListener("change", (e) => {
 		resetSendCardAutoState(true);
@@ -653,18 +640,10 @@
 	function updateSelectedFilesPreview() {
 		const list = $("#selectedFileList");
 		if (!selectedFiles.length) {
-			$("#packageFileName").textContent = "";
-			$("#packageFileSize").textContent = "";
 			list.replaceChildren();
 			list.classList.add("hidden");
 			return;
 		}
-		const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-		$("#packageFileName").textContent =
-			selectedFiles.length === 1
-				? selectedFiles[0].name
-				: fileCountText(selectedFiles.length);
-		$("#packageFileSize").textContent = humanSize(totalSize);
 		list.replaceChildren();
 		selectedFiles.forEach((file, index) => {
 			const item = document.createElement("li");
@@ -730,18 +709,11 @@
 			: `${humanSize(totalSize)} total, ready to send`;
 	}
 
-	// ── Interaction mode ──────────────────────────────────────
-
-	function applyInteractionMode() {
-		interactionMode = "modern";
-		document.documentElement.setAttribute("data-interaction", interactionMode);
-		localStorage.removeItem("cs_interaction");
-		syncModernPushState();
-	}
+	// ── Paper / send state ────────────────────────────────────
 
 	function syncModernPushState() {
 		const isText = $(".mode.active")?.dataset.mode === "text";
-		if (interactionMode === "modern" && isText) {
+		if (isText) {
 			setPaperOpen(!!$("#pushText").value.trim(), false);
 		}
 		updatePaperFoldLabel();
@@ -777,7 +749,7 @@
 		}
 
 		const count = Array.from(text).length;
-		if (countBadge) countBadge.textContent = String(count);
+		if (countBadge) countBadge.textContent = `${count} ${t("charsUnit")}`;
 		if (preview) {
 			const summary = text.replace(/\s+/g, " ");
 			preview.textContent =
@@ -789,20 +761,12 @@
 	function updateModernReadyState() {
 		const btn = $("#pushBtn");
 		if (!btn || btn.dataset.busy === "true") return;
-		if (interactionMode !== "modern") {
-			btn.disabled = false;
-			btn.classList.remove("modern-ready");
-			return;
-		}
-
 		const isText = $(".mode.active")?.dataset.mode === "text";
 		const ready = isText ? !!$("#pushText").value.trim() : selectedFiles.length > 0;
 		btn.disabled = !ready;
-		btn.classList.toggle("modern-ready", ready);
 	}
 
 	function triggerModernSendAnimation(type) {
-		if (interactionMode !== "modern") return;
 		const target = type === "text" ? $("#textMode") : $("#fileMode");
 		if (modernSendTimer) {
 			clearTimeout(modernSendTimer);
@@ -823,7 +787,7 @@
 	}
 
 	function foldPaperAfterPush(input) {
-		if (interactionMode !== "modern" || input?.type !== "text" || !paperOpen) return;
+		if (input?.type !== "text" || !paperOpen) return;
 		const textMode = $("#textMode");
 		if (textMode.classList.contains("modern-sending")) {
 			// 发送动画还在收尾时，先记下收起动作，避免先展开再折叠。
@@ -838,7 +802,7 @@
 
 	$("#pushText").addEventListener("input", () => {
 		resetSendCardAutoState(false);
-		if (interactionMode === "modern" && $("#pushText").value.trim()) {
+		if ($("#pushText").value.trim()) {
 			setPaperOpen(true, false);
 		}
 		updatePaperFoldLabel();
@@ -846,7 +810,7 @@
 	});
 
 	document.addEventListener("pointerdown", (e) => {
-		if (interactionMode !== "modern" || !paperOpen) return;
+		if (!paperOpen) return;
 		if (!$("#pushTab").classList.contains("active")) return;
 		if ($(".mode.active")?.dataset.mode !== "text") return;
 		if ($("#textMode").contains(e.target)) return;
@@ -855,7 +819,7 @@
 		setPaperOpen(false, false);
 	});
 
-	applyInteractionMode();
+	syncModernPushState();
 
 	// ── Push ──────────────────────────────────────────────────
 
