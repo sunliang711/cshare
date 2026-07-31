@@ -14,7 +14,6 @@
 			push: "发送",
 			pull: "接收",
 			sendPanelSubtitle: "选择内容类型",
-			paperHint: "点击输入文本",
 			sendOptions: "发送选项",
 			smartTransferDesc: "优先使用设备直连，速度更快",
 			charsUnit: "字符",
@@ -22,13 +21,11 @@
 			expandSendPanel: "展开发送信息",
 			collapseSendPanel: "收起发送信息",
 			receivePanelSubtitle: "输入 Key 或打开分享链接",
-			openTextInput: "展开文本输入",
 			selectedFiles: "已选文件",
 			removeFile: "移除文件",
 			text: "文本",
 			file: "文件",
 			pushPlaceholder: "输入要分享的文本内容…",
-			collapsePaper: "收起信纸",
 			dropHint: "拖拽文件到这里",
 			dropSubHint: "或点击选择文件",
 			dropReady: "文件已选择",
@@ -120,7 +117,6 @@
 			push: "Send",
 			pull: "Receive",
 			sendPanelSubtitle: "Choose content type",
-			paperHint: "Tap to enter text",
 			sendOptions: "Send Options",
 			smartTransferDesc: "Prefer direct device transfer for better speed",
 			charsUnit: "chars",
@@ -128,13 +124,11 @@
 			expandSendPanel: "Expand send info",
 			collapseSendPanel: "Collapse send info",
 			receivePanelSubtitle: "Enter a key or open a share link",
-			openTextInput: "Open text input",
 			selectedFiles: "Selected files",
 			removeFile: "Remove file",
 			text: "Text",
 			file: "File",
 			pushPlaceholder: "Enter text to share…",
-			collapsePaper: "Collapse letter",
 			dropHint: "Drop files here",
 			dropSubHint: "or click to choose",
 			dropReady: "File ready",
@@ -256,7 +250,7 @@
 		});
 		// Update html lang attribute
 		document.documentElement.lang = currentLang === "zh" ? "zh-CN" : "en";
-		updatePaperFoldLabel();
+		updateCharCount();
 		updateSelectedFilesPreview();
 		updateDirectTransferText();
 		updateSendCardStripText();
@@ -284,8 +278,18 @@
 		btn.textContent = theme === "dark" ? "☀" : "☾";
 		const metaColor = $("#metaThemeColor");
 		if (metaColor) {
-			metaColor.content = theme === "dark" ? "#0f1624" : "#f7faff";
+			metaColor.content = theme === "dark" ? "#0b1020" : "#eef2fb";
 		}
+		// backdrop-filter/合成层在主题切换后可能沿用旧纹理，强制整页重绘一次。
+		requestAnimationFrame(() => {
+			const active = document.activeElement;
+			document.body.style.display = "none";
+			void document.body.offsetHeight;
+			document.body.style.display = "";
+			if (active && typeof active.focus === "function") {
+				active.focus();
+			}
+		});
 	}
 
 	function toggleTheme() {
@@ -342,9 +346,6 @@
 	let transferMode = localStorage.getItem("cs_transfer") || "smart";
 	let selectedFiles = [];
 	let p2pState = null;
-	let paperOpen = false;
-	let modernSendTimer = null;
-	let pendingPaperFoldAfterSend = false;
 	let sendCardManualExpanded = false;
 
 	const p2pIceServers = [
@@ -709,53 +710,18 @@
 			: `${humanSize(totalSize)} total, ready to send`;
 	}
 
-	// ── Paper / send state ────────────────────────────────────
+	// ── Push state ────────────────────────────────────────────
+
+	function updateCharCount() {
+		const el = $("#charCount");
+		if (!el) return;
+		const count = Array.from($("#pushText")?.value || "").length;
+		el.textContent = count ? `${count} ${t("charsUnit")}` : "";
+	}
 
 	function syncModernPushState() {
-		const isText = $(".mode.active")?.dataset.mode === "text";
-		if (isText) {
-			setPaperOpen(!!$("#pushText").value.trim(), false);
-		}
-		updatePaperFoldLabel();
+		updateCharCount();
 		updateModernReadyState();
-	}
-
-	function setPaperOpen(open, focusText) {
-		const textMode = $("#textMode");
-		const wasOpen = paperOpen;
-		paperOpen = !!open;
-		textMode.classList.remove("paper-folding");
-		textMode.classList.toggle("paper-open", paperOpen);
-		if (wasOpen && !paperOpen) {
-			void textMode.offsetWidth;
-			textMode.classList.add("paper-folding");
-			setTimeout(() => textMode.classList.remove("paper-folding"), 420);
-		}
-		updatePaperFoldLabel();
-		if (paperOpen && focusText) {
-			requestAnimationFrame(() => $("#pushText").focus());
-		}
-	}
-
-	function updatePaperFoldLabel() {
-		const text = $("#pushText")?.value.trim() || "";
-		const preview = $(".paper-preview");
-		const countBadge = $(".paper-count");
-		$("#paperPrompt").classList.toggle("has-paper-text", !!text);
-		if (!text) {
-			if (preview) preview.textContent = "";
-			if (countBadge) countBadge.textContent = "";
-			return;
-		}
-
-		const count = Array.from(text).length;
-		if (countBadge) countBadge.textContent = `${count} ${t("charsUnit")}`;
-		if (preview) {
-			const summary = text.replace(/\s+/g, " ");
-			preview.textContent =
-				Array.from(summary).slice(0, 42).join("") +
-				(count > 42 ? "..." : "");
-		}
 	}
 
 	function updateModernReadyState() {
@@ -766,57 +732,10 @@
 		btn.disabled = !ready;
 	}
 
-	function triggerModernSendAnimation(type) {
-		const target = type === "text" ? $("#textMode") : $("#fileMode");
-		if (modernSendTimer) {
-			clearTimeout(modernSendTimer);
-			modernSendTimer = null;
-		}
-		if (type === "text") pendingPaperFoldAfterSend = false;
-		target.classList.remove("modern-sending");
-		void target.offsetWidth;
-		target.classList.add("modern-sending");
-		modernSendTimer = setTimeout(() => {
-			if (type === "text" && pendingPaperFoldAfterSend && paperOpen) {
-				setPaperOpen(false, false);
-			}
-			if (type === "text") pendingPaperFoldAfterSend = false;
-			target.classList.remove("modern-sending");
-			modernSendTimer = null;
-		}, 900);
-	}
-
-	function foldPaperAfterPush(input) {
-		if (input?.type !== "text" || !paperOpen) return;
-		const textMode = $("#textMode");
-		if (textMode.classList.contains("modern-sending")) {
-			// 发送动画还在收尾时，先记下收起动作，避免先展开再折叠。
-			pendingPaperFoldAfterSend = true;
-			return;
-		}
-		setPaperOpen(false, false);
-	}
-
-	$("#paperPrompt").addEventListener("click", () => setPaperOpen(true, true));
-	$("#paperCollapse").addEventListener("click", () => setPaperOpen(false, false));
-
 	$("#pushText").addEventListener("input", () => {
 		resetSendCardAutoState(false);
-		if ($("#pushText").value.trim()) {
-			setPaperOpen(true, false);
-		}
-		updatePaperFoldLabel();
+		updateCharCount();
 		updateModernReadyState();
-	});
-
-	document.addEventListener("pointerdown", (e) => {
-		if (!paperOpen) return;
-		if (!$("#pushTab").classList.contains("active")) return;
-		if ($(".mode.active")?.dataset.mode !== "text") return;
-		if ($("#textMode").contains(e.target)) return;
-		if ($("#pushText").value.trim()) return;
-
-		setPaperOpen(false, false);
 	});
 
 	syncModernPushState();
@@ -836,7 +755,6 @@
 			btn.dataset.busy = "true";
 			btn.disabled = true;
 			btn.textContent = t("pushing");
-			triggerModernSendAnimation(input.type);
 			clearPushResult(false);
 
 			if (transferMode === "smart" && input.type === "files") {
@@ -923,7 +841,6 @@
 			const result = await uploadToServer(input);
 			renderServerPushResult(result);
 			toast(t("pushOk"), "success");
-			foldPaperAfterPush(input);
 		} catch (e) {
 			resetSendCardAutoState(true);
 			toast(`${t("pushFail")}: ${e.message}`, "error");
@@ -1242,7 +1159,6 @@
 		autoCollapseSendCard();
 		await startP2PSenderAttempt("lan");
 		toast(t("p2pWaiting"), "success");
-		foldPaperAfterPush(input);
 	}
 
 	async function startP2PSenderAttempt(mode) {
@@ -1364,7 +1280,6 @@
 		$("#pushResult").classList.remove("hidden");
 		autoCollapseSendCard();
 		toast(t("p2pSent"), "success");
-		foldPaperAfterPush(input);
 	}
 
 	function waitDataChannelBuffer(dc) {
@@ -1407,7 +1322,6 @@
 			renderServerPushResult(result);
 			p2pState = null;
 			toast(t("pushOk"), "success");
-			foldPaperAfterPush(state.input);
 		} catch (e) {
 			state.fallbackStarted = false;
 			resetSendCardAutoState(true);

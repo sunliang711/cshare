@@ -8,16 +8,22 @@
 		/>
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="theme-color" content="#f7faff" id="metaThemeColor" />
+		<meta name="theme-color" content="#eef2fb" id="metaThemeColor" />
 		<title>CrossShare</title>
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="stylesheet" href="style.css?v=20260731" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+		<link rel="stylesheet" href="style.css?v=20260801" />
 	</head>
 	<body>
+		<div class="aurora" aria-hidden="true">
+			<span class="blob blob-a"></span>
+			<span class="blob blob-b"></span>
+			<span class="blob blob-c"></span>
+		</div>
+
 		<div class="app-shell">
 			<header class="app-header">
 				<a class="brand" href="/" aria-label="CrossShare">
-					<img src="/favicon.svg" alt="" />
+					<img src="/favicon.svg?v=2" alt="" />
 					<div>
 						<h1>CrossShare</h1>
 						<p class="subtitle" data-i18n="subtitle">
@@ -91,15 +97,15 @@
 			<main class="stage">
 				<nav class="tabs">
 					<button class="tab active" data-tab="push" data-i18n="push">
-						推送
+						发送
 					</button>
 					<button class="tab" data-tab="pull" data-i18n="pull">
-						拉取
+						接收
 					</button>
 				</nav>
 
 				<section id="pushTab" class="tab-content active">
-					<div class="content-card send-card">
+					<div class="glass-card send-card">
 						<button
 							type="button"
 							id="sendCardToggle"
@@ -116,10 +122,6 @@
 							</span>
 						</button>
 
-						<div class="panel-heading">
-							<p data-i18n="sendPanelSubtitle">选择内容类型</p>
-						</div>
-
 						<div class="mode-switch">
 							<button
 								class="mode active"
@@ -133,146 +135,102 @@
 							</button>
 						</div>
 
-						<div class="share-orb">
-							<div id="textMode" class="orb-content">
-								<button
-									type="button"
-									id="paperPrompt"
-									class="paper-fold"
-									aria-controls="pushText"
-									data-i18n-title="openTextInput"
-									data-i18n-aria-label="openTextInput"
-									title="展开文本输入"
-									aria-label="展开文本输入"
-								>
-									<span class="folded-paper" aria-hidden="true">
-										<span class="paper-sheet"></span>
-										<span class="paper-preview"></span>
-										<span class="paper-count"></span>
-									</span>
-									<span class="paper-hint" data-i18n="paperHint">
-										点击输入文本
-									</span>
-								</button>
-								<div class="paper-editor">
-									<label class="orb-label" for="pushText" data-i18n="textContent">
-										文本内容
-									</label>
-									<button
-										type="button"
-										id="paperCollapse"
-										class="paper-collapse"
-										data-i18n-title="collapsePaper"
-										data-i18n-aria-label="collapsePaper"
-										title="收起信纸"
-										aria-label="收起信纸"
-									></button>
-									<textarea
-										id="pushText"
-										data-i18n-placeholder="pushPlaceholder"
-										placeholder="输入要分享的文本内容…"
-										rows="5"
-									></textarea>
-								</div>
-							</div>
-
-							<div id="fileMode" class="orb-content hidden">
-								<div class="drop-zone" id="dropZone">
-									<button
-										type="button"
-										id="clearFile"
-										class="file-clear hidden"
-										data-i18n-title="clear"
-										data-i18n-aria-label="clear"
-										title="清除"
-										aria-label="清除"
-									>
-										<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-											<path d="M6 6l12 12" />
-											<path d="M18 6L6 18" />
-										</svg>
-									</button>
-									<span class="drop-icon" aria-hidden="true">
-										<svg
-											class="drop-icon-upload"
-											viewBox="0 0 24 24"
-											fill="none"
-										>
-											<path d="M12 16V5" />
-											<path d="M8 9l4-4 4 4" />
-											<path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
-										</svg>
-										<svg
-											class="drop-icon-ready"
-											viewBox="0 0 24 24"
-											fill="none"
-										>
-											<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-											<path d="M14 3v5h5" />
-											<path d="M9 14l2 2 4-4" />
-										</svg>
-									</span>
-									<p id="dropTitle" data-i18n="dropHint">拖拽文件到这里</p>
-									<span
-										id="dropSubtitle"
-										class="drop-subtitle"
-										data-i18n="dropSubHint"
-									>
-										或点击选择文件
-									</span>
-									<ul
-										id="selectedFileList"
-										class="selected-file-list hidden"
-										data-i18n-aria-label="selectedFiles"
-										aria-label="已选文件"
-										aria-live="polite"
-									></ul>
-									<input type="file" id="fileInput" multiple />
-								</div>
+						<div id="textMode">
+							<label class="sr-only" for="pushText" data-i18n="textContent">
+								文本内容
+							</label>
+							<div class="text-editor">
+								<textarea
+									id="pushText"
+									data-i18n-placeholder="pushPlaceholder"
+									placeholder="输入要分享的文本内容…"
+									rows="7"
+								></textarea>
+								<span class="char-count" id="charCount" aria-hidden="true"></span>
 							</div>
 						</div>
 
-						<div class="action-dock">
-							<span class="action-dock-title" data-i18n="sendOptions">
-								发送选项
-							</span>
-
-							<div class="send-row">
+						<div id="fileMode" class="hidden">
+							<div class="drop-zone" id="dropZone">
 								<button
-									class="btn btn-primary btn-block"
-									id="pushBtn"
-									data-i18n="push"
-									data-i18n-title="push"
-									title="发送"
+									type="button"
+									id="clearFile"
+									class="file-clear hidden"
+									data-i18n-title="clear"
+									data-i18n-aria-label="clear"
+									title="清除"
+									aria-label="清除"
 								>
-									发送
+									<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+										<path d="M6 6l12 12" />
+										<path d="M18 6L6 18" />
+									</svg>
 								</button>
-								<label
-									class="direct-toggle"
-									data-i18n-title="directTransferHint"
-									title="关闭后使用服务器暂存"
+								<span class="drop-icon" aria-hidden="true">
+									<svg
+										class="drop-icon-upload"
+										viewBox="0 0 24 24"
+										fill="none"
+									>
+										<path d="M12 16V5" />
+										<path d="M8 9l4-4 4 4" />
+										<path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+									</svg>
+									<svg
+										class="drop-icon-ready"
+										viewBox="0 0 24 24"
+										fill="none"
+									>
+										<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+										<path d="M14 3v5h5" />
+										<path d="M9 14l2 2 4-4" />
+									</svg>
+								</span>
+								<p id="dropTitle" data-i18n="dropHint">拖拽文件到这里</p>
+								<span
+									id="dropSubtitle"
+									class="drop-subtitle"
+									data-i18n="dropSubHint"
 								>
-									<input
-										type="checkbox"
-										id="directTransferToggle"
-										checked
-										data-i18n-aria-label="smartTransfer"
-										aria-label="直连优先"
-									/>
-									<span class="toggle-track" aria-hidden="true">
-										<span class="toggle-thumb"></span>
-									</span>
-									<span class="direct-toggle-text">
-										<strong class="direct-toggle-title">直连优先</strong>
-										<small
-											class="direct-toggle-desc"
-											data-i18n="smartTransferDesc"
-										>
-											优先使用设备直连，速度更快
-										</small>
-									</span>
-								</label>
+									或点击选择文件
+								</span>
+								<ul
+									id="selectedFileList"
+									class="selected-file-list hidden"
+									data-i18n-aria-label="selectedFiles"
+									aria-label="已选文件"
+									aria-live="polite"
+								></ul>
+								<input type="file" id="fileInput" multiple />
 							</div>
+						</div>
+
+						<div class="options-bar">
+							<label
+								class="direct-toggle"
+								data-i18n-title="directTransferHint"
+								title="关闭后使用服务器暂存"
+							>
+								<input
+									type="checkbox"
+									id="directTransferToggle"
+									checked
+									data-i18n-aria-label="smartTransfer"
+									aria-label="直连优先"
+								/>
+								<span class="toggle-track" aria-hidden="true">
+									<span class="toggle-thumb"></span>
+								</span>
+								<span class="direct-toggle-text">
+									<strong class="direct-toggle-title">直连优先</strong>
+									<small
+										class="direct-toggle-desc"
+										data-i18n="smartTransferDesc"
+									>
+										优先使用设备直连，速度更快
+									</small>
+								</span>
+							</label>
 
 							<details class="push-more">
 								<summary data-i18n="moreSettings">更多设置</summary>
@@ -291,9 +249,19 @@
 								</div>
 							</details>
 						</div>
+
+						<button
+							class="btn btn-hero"
+							id="pushBtn"
+							data-i18n="push"
+							data-i18n-title="push"
+							title="发送"
+						>
+							发送
+						</button>
 					</div>
 
-					<div id="pushResult" class="result hidden">
+					<div id="pushResult" class="glass-card result hidden">
 						<div class="result-key">
 							<span id="resultKey"></span>
 							<div class="result-key-actions">
@@ -346,50 +314,37 @@
 				</section>
 
 				<section id="pullTab" class="tab-content">
-					<div class="content-card receive-card">
-						<div class="panel-heading">
-							<p data-i18n="receivePanelSubtitle">输入 Key 或打开分享链接</p>
-						</div>
-
-						<div class="pull-orb">
-							<div class="safe-visual" aria-hidden="true">
-								<span class="safe-content"></span>
-								<span class="safe-door">
-									<span class="safe-dial"></span>
-									<span class="safe-handle"></span>
+					<div class="glass-card receive-card">
+						<div class="pull-control">
+							<label class="field-label" for="pullKey" data-i18n="enterKey">
+								输入 Key
+							</label>
+							<div class="pull-input">
+								<input
+									type="text"
+									id="pullKey"
+									data-i18n-placeholder="enterKey"
+									placeholder="输入 Key"
+								/>
+								<button
+									class="btn btn-primary"
+									id="pullBtn"
+									data-i18n="pull"
+									data-i18n-title="pull"
+									title="接收"
+								>
+									接收
+								</button>
+							</div>
+							<label class="checkbox receive-option">
+								<input type="checkbox" id="deleteAfterPull" />
+								<span>
+									<strong data-i18n="deleteAfterPull">一次性拉取</strong>
+									<small data-i18n="deleteAfterPullHint">
+										拉取成功后删除服务端内容
+									</small>
 								</span>
-							</div>
-							<div class="pull-control">
-								<label class="orb-label" for="pullKey" data-i18n="enterKey">
-									输入 Key
-								</label>
-								<div class="pull-input">
-									<input
-										type="text"
-										id="pullKey"
-										data-i18n-placeholder="enterKey"
-										placeholder="输入 Key"
-									/>
-									<button
-										class="btn btn-primary"
-										id="pullBtn"
-										data-i18n="pull"
-										data-i18n-title="pull"
-										title="接收"
-									>
-										接收
-									</button>
-								</div>
-								<label class="checkbox receive-option">
-									<input type="checkbox" id="deleteAfterPull" />
-									<span>
-										<strong data-i18n="deleteAfterPull">一次性拉取</strong>
-										<small data-i18n="deleteAfterPullHint">
-											拉取成功后删除服务端内容
-										</small>
-									</span>
-								</label>
-							</div>
+							</label>
 						</div>
 
 						<details class="pull-more">
@@ -427,7 +382,7 @@
 						</details>
 					</div>
 
-					<div id="pullResult" class="result hidden">
+					<div id="pullResult" class="glass-card result hidden">
 						<div id="pullTextResult" class="hidden">
 							<div class="pull-text-header">
 								<span class="pull-label" data-i18n="textContent"
@@ -457,7 +412,6 @@
 						<div class="result-meta" id="pullMeta"></div>
 					</div>
 				</section>
-
 			</main>
 
 			<div id="toast" class="toast hidden"></div>
@@ -485,6 +439,6 @@
 		</div>
 
 		<script src="qrcode-lite.js"></script>
-		<script src="app.js?v=20260731"></script>
+		<script src="app.js?v=20260801"></script>
 	</body>
 </html>
