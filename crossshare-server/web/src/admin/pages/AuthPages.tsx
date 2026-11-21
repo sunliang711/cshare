@@ -76,8 +76,16 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
       </div>
 
       <div className="relative flex flex-col items-center justify-center p-6 sm:p-12">
-        <div className="absolute top-5 right-5 sm:top-6 sm:right-6">
+        <div className="absolute top-5 right-5 sm:top-6 sm:right-6 flex items-center gap-2">
           <PreferenceControls />
+          <a
+            href="/"
+            title={t('nav.toClient')}
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-xs font-medium text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+          >
+            <Share2 className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+            <span>{t('nav.toClient')}</span>
+          </a>
         </div>
 
         <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-200/30 dark:shadow-black/40 p-6 sm:p-9">

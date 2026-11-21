@@ -19,6 +19,7 @@ export const en: Record<TranslationKey, string> = {
   'nav.migration': 'Migration',
   'nav.settings': 'Settings',
   'nav.logout': 'Sign Out',
+  'nav.toClient': 'Client',
   'nav.openMenu': 'Open menu',
   'nav.collapseMenu': 'Collapse menu',
   'nav.mainAria': 'Main Navigation',

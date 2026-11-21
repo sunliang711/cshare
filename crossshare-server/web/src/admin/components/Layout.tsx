@@ -8,6 +8,7 @@ import {
   Menu,
   ScrollText,
   Settings,
+  Share2,
   ShieldCheck,
   X,
 } from 'lucide-react'
@@ -161,6 +162,14 @@ export const Layout: React.FC<LayoutProps> = ({
               </span>
             </div>
             <PreferenceControls />
+            <a
+              href="/"
+              title={t('nav.toClient')}
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-xs font-medium text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+            >
+              <Share2 className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span>{t('nav.toClient')}</span>
+            </a>
           </div>
         </header>
 

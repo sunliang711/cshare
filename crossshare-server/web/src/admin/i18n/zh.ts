@@ -17,6 +17,7 @@ export const zh = {
   'nav.migration': '环境迁移',
   'nav.settings': '系统设置',
   'nav.logout': '退出登录',
+  'nav.toClient': '客户端',
   'nav.openMenu': '打开菜单',
   'nav.collapseMenu': '收起菜单',
   'nav.mainAria': '主导航',
