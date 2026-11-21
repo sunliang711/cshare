@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { KeyRound, Lock, Plus, RefreshCw, Save, Shield, Users } from 'lucide-react'
 import { api, formatBytes, formatTime } from '../api'
 import { Badge } from '../components/Badge'
@@ -9,12 +9,117 @@ import { useToast } from '../components/Toast'
 import { useI18n } from '../contexts/I18nContext'
 import type { Admin, SystemSettings } from '../types'
 
+interface UnitOption {
+  key: string
+  label: string
+  factor: number
+}
+
+function pickBestUnit(raw: number, units: UnitOption[]): UnitOption {
+  if (raw > 0) {
+    for (let i = units.length - 1; i >= 0; i--) {
+      if (raw >= units[i].factor && raw % units[i].factor === 0) {
+        return units[i]
+      }
+    }
+  }
+  return units[0]
+}
+
+const UnitNumberInput: React.FC<{
+  value: number
+  syncVersion: number
+  units: UnitOption[]
+  onChange: (rawValue: number) => void
+  preview: string
+}> = ({ value, syncVersion, units, onChange, preview }) => {
+  const [unitKey, setUnitKey] = useState<string>(() => pickBestUnit(value, units).key)
+  const [text, setText] = useState<string>(() => {
+    const best = pickBestUnit(value, units)
+    return String(value / best.factor)
+  })
+
+  useEffect(() => {
+    const best = pickBestUnit(value, units)
+    setUnitKey(best.key)
+    setText(String(value / best.factor))
+    // Re-sync display unit only when backend data is reloaded/saved
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncVersion])
+
+  const currentUnit = units.find((u) => u.key === unitKey) || units[0]
+
+  return (
+    <div>
+      <div className="flex items-stretch gap-1.5">
+        <input
+          type="number"
+          step="any"
+          min={0}
+          required
+          value={text}
+          onChange={(e) => {
+            const rawText = e.target.value
+            setText(rawText)
+            const num = Number(rawText)
+            if (Number.isFinite(num) && num >= 0) {
+              onChange(Math.round(num * currentUnit.factor))
+            }
+          }}
+          className="flex-1 min-w-0 px-3 py-2 border rounded-xl text-xs font-mono"
+        />
+        <select
+          value={unitKey}
+          onChange={(e) => {
+            const nextKey = e.target.value
+            setUnitKey(nextKey)
+            const nextUnit = units.find((u) => u.key === nextKey) || units[0]
+            const num = Number(text)
+            if (Number.isFinite(num) && num >= 0) {
+              onChange(Math.round(num * nextUnit.factor))
+            }
+          }}
+          className="w-24 shrink-0 px-2.5 py-2 border rounded-xl text-xs bg-white dark:bg-slate-900"
+        >
+          {units.map((u) => (
+            <option key={u.key} value={u.key}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="text-[11px] text-slate-400 font-mono mt-1">{preview}</div>
+    </div>
+  )
+}
+
 export const SettingsPage: React.FC = () => {
   const { t } = useI18n()
   const toast = useToast()
 
+  const ttlUnits = useMemo<UnitOption[]>(
+    () => [
+      { key: 's', label: t('unit.second'), factor: 1 },
+      { key: 'm', label: t('unit.minute'), factor: 60 },
+      { key: 'h', label: t('unit.hour'), factor: 3600 },
+      { key: 'd', label: t('unit.day'), factor: 86400 },
+    ],
+    [t],
+  )
+
+  const sizeUnits = useMemo<UnitOption[]>(
+    () => [
+      { key: 'B', label: 'B', factor: 1 },
+      { key: 'KB', label: 'KB', factor: 1024 },
+      { key: 'MB', label: 'MB', factor: 1024 * 1024 },
+      { key: 'GB', label: 'GB', factor: 1024 * 1024 * 1024 },
+    ],
+    [],
+  )
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [syncVersion, setSyncVersion] = useState(0)
 
   // Settings form
   const [form, setForm] = useState<SystemSettings>({
@@ -53,6 +158,7 @@ export const SettingsPage: React.FC = () => {
     try {
       const [s, adm] = await Promise.all([api.getSettings(), api.listAdmins()])
       setForm(s)
+      setSyncVersion((v) => v + 1)
       setJwtSecretInput('')
       setClearJwtSecret(false)
       setAdmins(adm.items || [])
@@ -99,6 +205,7 @@ export const SettingsPage: React.FC = () => {
 
       const updated = await api.updateSettings(payload)
       setForm(updated)
+      setSyncVersion((v) => v + 1)
       setJwtSecretInput('')
       setClearJwtSecret(false)
       toast.success(t('settings.saved'))
@@ -187,24 +294,24 @@ export const SettingsPage: React.FC = () => {
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                   {t('settings.defaultTtl')}
                 </label>
-                <input
-                  type="number"
-                  min={1}
+                <UnitNumberInput
                   value={form.default_ttl}
-                  onChange={(e) => setForm((f) => ({ ...f, default_ttl: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border rounded-xl text-xs"
+                  syncVersion={syncVersion}
+                  units={ttlUnits}
+                  onChange={(v) => setForm((f) => ({ ...f, default_ttl: v }))}
+                  preview={`= ${form.default_ttl} ${t('unit.second')}`}
                 />
               </div>
               <div>
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                   {t('settings.maxTtl')}
                 </label>
-                <input
-                  type="number"
-                  min={1}
+                <UnitNumberInput
                   value={form.max_ttl}
-                  onChange={(e) => setForm((f) => ({ ...f, max_ttl: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border rounded-xl text-xs"
+                  syncVersion={syncVersion}
+                  units={ttlUnits}
+                  onChange={(v) => setForm((f) => ({ ...f, max_ttl: v }))}
+                  preview={`= ${form.max_ttl} ${t('unit.second')}`}
                 />
               </div>
             </div>
@@ -212,26 +319,26 @@ export const SettingsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  {t('settings.textLimit')} ({formatBytes(form.text_json_limit)})
+                  {t('settings.textLimit')}
                 </label>
-                <input
-                  type="number"
-                  min={1024}
+                <UnitNumberInput
                   value={form.text_json_limit}
-                  onChange={(e) => setForm((f) => ({ ...f, text_json_limit: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border rounded-xl text-xs font-mono"
+                  syncVersion={syncVersion}
+                  units={sizeUnits}
+                  onChange={(v) => setForm((f) => ({ ...f, text_json_limit: v }))}
+                  preview={`= ${form.text_json_limit.toLocaleString()} B (${formatBytes(form.text_json_limit)})`}
                 />
               </div>
               <div>
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  {t('settings.filesLimit')} ({formatBytes(form.files_push_limit)})
+                  {t('settings.filesLimit')}
                 </label>
-                <input
-                  type="number"
-                  min={1024}
+                <UnitNumberInput
                   value={form.files_push_limit}
-                  onChange={(e) => setForm((f) => ({ ...f, files_push_limit: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border rounded-xl text-xs font-mono"
+                  syncVersion={syncVersion}
+                  units={sizeUnits}
+                  onChange={(v) => setForm((f) => ({ ...f, files_push_limit: v }))}
+                  preview={`= ${form.files_push_limit.toLocaleString()} B (${formatBytes(form.files_push_limit)})`}
                 />
               </div>
             </div>
