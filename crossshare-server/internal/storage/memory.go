@@ -23,12 +23,16 @@ type MemoryStorage struct {
 	stopCh chan struct{}
 }
 
-func NewMemoryStorage(lc fx.Lifecycle, logger zerolog.Logger) *MemoryStorage {
-	s := &MemoryStorage{
+func NewInMemoryStorage(logger zerolog.Logger) *MemoryStorage {
+	return &MemoryStorage{
 		items:  make(map[string]*memEntry),
 		logger: logger.With().Str("component", "storage").Logger(),
 		stopCh: make(chan struct{}),
 	}
+}
+
+func NewMemoryStorage(lc fx.Lifecycle, logger zerolog.Logger) *MemoryStorage {
+	s := NewInMemoryStorage(logger)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -142,4 +146,29 @@ func (s *MemoryStorage) Expire(_ context.Context, key string, ttl time.Duration)
 		entry.expireAt = time.Now().Add(ttl)
 	}
 	return nil
+}
+
+func (s *MemoryStorage) HealthCheck(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (s *MemoryStorage) Stats(_ context.Context) (StorageStats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	now := time.Now()
+	var count int64
+	var totalBytes int64
+	for _, entry := range s.items {
+		if now.After(entry.expireAt) {
+			continue
+		}
+		count++
+		totalBytes += int64(len(entry.share.Content))
+	}
+	return StorageStats{
+		Backend:      "memory",
+		ActiveShares: count,
+		TotalBytes:   totalBytes,
+	}, nil
 }

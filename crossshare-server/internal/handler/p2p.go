@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"crossshare-server/internal/audit"
 	apperr "crossshare-server/internal/errors"
 	"crossshare-server/internal/model"
 	"crossshare-server/internal/service"
@@ -27,12 +28,14 @@ const (
 
 type P2PHandler struct {
 	svc    *service.P2PService
+	audit  *audit.Recorder
 	logger zerolog.Logger
 }
 
-func NewP2PHandler(svc *service.P2PService, logger zerolog.Logger) *P2PHandler {
+func NewP2PHandler(svc *service.P2PService, auditRec *audit.Recorder, logger zerolog.Logger) *P2PHandler {
 	return &P2PHandler{
 		svc:    svc,
+		audit:  auditRec,
 		logger: logger.With().Str("handler", "p2p").Logger(),
 	}
 }
@@ -51,6 +54,14 @@ func (h *P2PHandler) CreateSession(c *gin.Context) {
 		return
 	}
 
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "p2p.session.create",
+		ResourceType: "p2p_session",
+		ResourceID:   result.SessionID,
+		Detail:       map[string]any{"ttl": result.TTL},
+	})
 	respondSuccess(c, "p2p session created", result)
 }
 
@@ -148,6 +159,13 @@ func (h *P2PHandler) CloseSession(c *gin.Context) {
 		return
 	}
 
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "p2p.session.close",
+		ResourceType: "p2p_session",
+		ResourceID:   sessionID,
+	})
 	respondSuccess(c, "p2p session closed", gin.H{"session_id": sessionID, "closed": true})
 }
 

@@ -6,24 +6,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
-	"crossshare-server/internal/config"
 	apperr "crossshare-server/internal/errors"
 	"crossshare-server/internal/model"
+	"crossshare-server/internal/settings"
 )
 
-func Auth(cfg *config.Config) gin.HandlerFunc {
+func Auth(settingsMgr *settings.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !cfg.Auth.Enable {
+		cur := settingsMgr.Get()
+		if !cur.ClientAuthEnable {
 			c.Next()
 			return
 		}
 
-		headerName := cfg.Auth.JWTHeaderName
-		if headerName == "" {
-			headerName = "Authorization"
+		if cur.ClientJWTSecret == "" {
+			abortWithAppError(c, apperr.ErrAuthInvalid)
+			return
 		}
 
-		authHeader := c.GetHeader(headerName)
+		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			abortWithAppError(c, apperr.ErrAuthInvalid)
 			return
@@ -39,7 +40,7 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
-			return []byte(cfg.Auth.JWTSecret), nil
+			return []byte(cur.ClientJWTSecret), nil
 		})
 		if err != nil || !token.Valid {
 			abortWithAppError(c, apperr.ErrAuthInvalid)

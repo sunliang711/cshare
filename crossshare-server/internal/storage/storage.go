@@ -12,6 +12,12 @@ import (
 	"crossshare-server/internal/model"
 )
 
+type StorageStats struct {
+	Backend      string `json:"backend"`
+	ActiveShares int64  `json:"active_shares"`
+	TotalBytes   int64  `json:"total_bytes"`
+}
+
 type Storage interface {
 	Save(ctx context.Context, share *model.Share, ttl time.Duration) error
 	Get(ctx context.Context, key string) (*model.Share, error)
@@ -19,6 +25,8 @@ type Storage interface {
 	Exists(ctx context.Context, key string) (bool, error)
 	GetHash(ctx context.Context, key string) (string, error)
 	Expire(ctx context.Context, key string, ttl time.Duration) error
+	HealthCheck(ctx context.Context) (latencyMs int64, err error)
+	Stats(ctx context.Context) (StorageStats, error)
 }
 
 var Module = fx.Options(

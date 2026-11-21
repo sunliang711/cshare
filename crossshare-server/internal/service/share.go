@@ -14,10 +14,10 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
-	"crossshare-server/internal/config"
 	apperr "crossshare-server/internal/errors"
 	"crossshare-server/internal/keygen"
 	"crossshare-server/internal/model"
+	"crossshare-server/internal/settings"
 	"crossshare-server/internal/storage"
 )
 
@@ -29,16 +29,16 @@ var Module = fx.Options(
 )
 
 type ShareService struct {
-	storage storage.Storage
-	config  *config.Config
-	logger  zerolog.Logger
+	storage  storage.Storage
+	settings *settings.Manager
+	logger   zerolog.Logger
 }
 
-func NewShareService(s storage.Storage, cfg *config.Config, logger zerolog.Logger) *ShareService {
+func NewShareService(s storage.Storage, settingsMgr *settings.Manager, logger zerolog.Logger) *ShareService {
 	return &ShareService{
-		storage: s,
-		config:  cfg,
-		logger:  logger.With().Str("component", "service").Logger(),
+		storage:  s,
+		settings: settingsMgr,
+		logger:   logger.With().Str("component", "service").Logger(),
 	}
 }
 
@@ -80,8 +80,9 @@ type PulledFile struct {
 
 func (s *ShareService) PushText(ctx context.Context, req *PushTextRequest) (*model.PushResult, error) {
 	content := []byte(req.Text)
+	cfg := s.settings.Get()
 
-	if int64(len(content)) > s.config.Business.TextJSONLimit {
+	if int64(len(content)) > cfg.TextJSONLimit {
 		return nil, apperr.ErrPayloadTooLarge
 	}
 
@@ -166,7 +167,8 @@ func (s *ShareService) PushFiles(ctx context.Context, req *PushFilesRequest) (*m
 	if len(req.Files) == 0 {
 		return nil, apperr.ErrInvalidPayload
 	}
-	if s.config.Business.MaxFilesPerPush > 0 && len(req.Files) > s.config.Business.MaxFilesPerPush {
+	cfg := s.settings.Get()
+	if cfg.MaxFilesPerPush > 0 && len(req.Files) > cfg.MaxFilesPerPush {
 		return nil, apperr.ErrPayloadTooLarge
 	}
 
@@ -174,7 +176,7 @@ func (s *ShareService) PushFiles(ctx context.Context, req *PushFilesRequest) (*m
 	if err != nil {
 		return nil, err
 	}
-	if int64(totalSize) > s.config.Business.FilesPushLimit {
+	if int64(totalSize) > cfg.FilesPushLimit {
 		return nil, apperr.ErrPayloadTooLarge
 	}
 
@@ -321,10 +323,11 @@ func (s *ShareService) Delete(ctx context.Context, key string) (bool, error) {
 }
 
 func (s *ShareService) resolveTTL(requested int) int {
+	cfg := s.settings.Get()
 	if requested == 0 {
-		return s.config.Business.DefaultTTL
+		return cfg.DefaultTTL
 	}
-	if requested < 0 || requested > s.config.Business.MaxTTL {
+	if requested < 0 || requested > cfg.MaxTTL {
 		return -1
 	}
 	return requested

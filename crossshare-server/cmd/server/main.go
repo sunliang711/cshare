@@ -7,11 +7,17 @@ import (
 
 	"go.uber.org/fx"
 
+	"crossshare-server/internal/audit"
 	"crossshare-server/internal/config"
+	"crossshare-server/internal/crypto"
+	"crossshare-server/internal/db"
 	"crossshare-server/internal/handler"
 	"crossshare-server/internal/logger"
+	"crossshare-server/internal/migration"
+	"crossshare-server/internal/scheduler"
 	"crossshare-server/internal/server"
 	"crossshare-server/internal/service"
+	"crossshare-server/internal/settings"
 	"crossshare-server/internal/storage"
 )
 
@@ -36,8 +42,14 @@ func main() {
 		fx.Supply(server.Version(version)),
 		config.Module,
 		logger.Module,
+		crypto.Module,
+		db.Module,
+		settings.Module,
+		audit.Module,
+		migration.Module,
 		storage.Module,
 		service.Module,
+		scheduler.Module,
 		handler.Module,
 		server.Module,
 	).Run()

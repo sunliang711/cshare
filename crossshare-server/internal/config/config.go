@@ -14,13 +14,10 @@ var Module = fx.Options(
 )
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server" yaml:"server"`
-	Auth      AuthConfig      `mapstructure:"auth" yaml:"auth"`
-	Business  BusinessConfig  `mapstructure:"business" yaml:"business"`
-	RateLimit RateLimitConfig `mapstructure:"ratelimit" yaml:"ratelimit"`
-	CORS      CORSConfig      `mapstructure:"cors" yaml:"cors"`
-	Storage   StorageConfig   `mapstructure:"storage" yaml:"storage"`
-	Redis     RedisConfig     `mapstructure:"redis" yaml:"redis"`
+	Server  ServerConfig  `mapstructure:"server" yaml:"server"`
+	CORS    CORSConfig    `mapstructure:"cors" yaml:"cors"`
+	Storage StorageConfig `mapstructure:"storage" yaml:"storage"`
+	Redis   RedisConfig   `mapstructure:"redis" yaml:"redis"`
 }
 
 type StorageConfig struct {
@@ -32,25 +29,8 @@ type ServerConfig struct {
 	TLSEnable bool   `mapstructure:"tls_enable" yaml:"tls_enable"`
 	CrtPath   string `mapstructure:"crt_path" yaml:"crt_path"`
 	KeyPath   string `mapstructure:"key_path" yaml:"key_path"`
-}
-
-type AuthConfig struct {
-	Enable        bool   `mapstructure:"enable" yaml:"enable"`
-	JWTSecret     string `mapstructure:"jwt_secret" yaml:"jwt_secret"`
-	JWTHeaderName string `mapstructure:"jwt_header_name" yaml:"jwt_header_name"`
-}
-
-type BusinessConfig struct {
-	DefaultTTL      int   `mapstructure:"default_ttl" yaml:"default_ttl"`
-	MaxTTL          int   `mapstructure:"max_ttl" yaml:"max_ttl"`
-	TextJSONLimit   int64 `mapstructure:"text_json_limit" yaml:"text_json_limit"`
-	FilesPushLimit  int64 `mapstructure:"files_push_limit" yaml:"files_push_limit"`
-	MaxFilesPerPush int   `mapstructure:"max_files_per_push" yaml:"max_files_per_push"`
-}
-
-type RateLimitConfig struct {
-	Enable            bool `mapstructure:"enable" yaml:"enable"`
-	RequestsPerMinute int  `mapstructure:"requests_per_minute" yaml:"requests_per_minute"`
+	DataDir   string `mapstructure:"data_dir" yaml:"data_dir"`
+	MasterKey string `mapstructure:"master_key" yaml:"master_key"`
 }
 
 type CORSConfig struct {
@@ -68,18 +48,10 @@ type RedisConfig struct {
 
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 10431)
-	v.SetDefault("auth.enable", false)
-	v.SetDefault("auth.jwt_secret", "change-me-in-production")
-	v.SetDefault("auth.jwt_header_name", "Authorization")
-	v.SetDefault("business.default_ttl", 600)
-	v.SetDefault("business.max_ttl", 86400) // 24 hours
-	v.SetDefault("business.text_json_limit", 1<<20)
-	v.SetDefault("business.files_push_limit", 20<<20)
-	v.SetDefault("business.max_files_per_push", 20)
-	v.SetDefault("ratelimit.enable", true)
-	v.SetDefault("ratelimit.requests_per_minute", 20)
+	v.SetDefault("server.data_dir", "./data")
+	v.SetDefault("server.master_key", "")
 	v.SetDefault("cors.allow_origins", []string{"*"})
-	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "DELETE", "OPTIONS"})
+	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	v.SetDefault("cors.allow_headers", []string{
 		"Content-Type", "Authorization", "X-Request-Id",
 		"Filename", "X-Content-Type", "X-TTL",
@@ -119,6 +91,9 @@ func New() (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(cfg.Server.DataDir) == "" {
+		cfg.Server.DataDir = "./data"
 	}
 	return &cfg, nil
 }

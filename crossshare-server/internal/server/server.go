@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
 	"crossshare-server/internal/config"
+	"crossshare-server/internal/db"
 	"crossshare-server/internal/handler"
 	"crossshare-server/internal/middleware"
+	"crossshare-server/internal/settings"
 	"crossshare-server/web"
 )
 
@@ -31,14 +35,17 @@ type Params struct {
 	Version       Version
 	Config        *config.Config
 	Logger        zerolog.Logger
+	Store         *db.Store
+	Settings      *settings.Manager
 	HealthHandler *handler.HealthHandler
 	PushHandler   *handler.PushHandler
 	PullHandler   *handler.PullHandler
 	P2PHandler    *handler.P2PHandler
+	AdminHandler  *handler.AdminHandler
 	RateLimiter   *middleware.RateLimiter
 }
 
-func New(p Params) *http.Server {
+func NewRouter(p Params) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -48,7 +55,11 @@ func New(p Params) *http.Server {
 	r.Use(middleware.CORS(p.Config))
 	r.Use(p.RateLimiter.Middleware())
 
-	authMw := middleware.Auth(p.Config)
+	if p.AdminHandler != nil {
+		p.AdminHandler.SetVersion(string(p.Version))
+	}
+
+	authMw := middleware.Auth(p.Settings)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -80,13 +91,110 @@ func New(p Params) *http.Server {
 		}
 	}
 
-	staticFS, _ := fs.Sub(web.StaticFiles, ".")
-	r.GET("/", gin.WrapH(http.FileServer(http.FS(staticFS))))
-	r.GET("/style.css", gin.WrapH(http.FileServer(http.FS(staticFS))))
-	r.GET("/app.js", gin.WrapH(http.FileServer(http.FS(staticFS))))
-	r.GET("/qrcode-lite.js", gin.WrapH(http.FileServer(http.FS(staticFS))))
-	r.GET("/favicon.svg", gin.WrapH(http.FileServer(http.FS(staticFS))))
+	if p.AdminHandler != nil && p.Store != nil {
+		adminAuthMw := middleware.AdminAuth(p.Store, p.AdminHandler.JWTSecret())
+		adminAPI := r.Group("/admin/api/v1")
+		{
+			adminAPI.GET("/setup/status", p.AdminHandler.SetupStatus)
+			adminAPI.POST("/setup/init", p.AdminHandler.SetupInit)
+			adminAPI.POST("/auth/login", p.AdminHandler.Login)
+			adminAPI.POST("/auth/logout", p.AdminHandler.Logout)
 
+			protected := adminAPI.Group("")
+			protected.Use(adminAuthMw)
+			{
+				protected.GET("/auth/me", p.AdminHandler.Me)
+				protected.PUT("/auth/password", p.AdminHandler.ChangePassword)
+
+				protected.GET("/dashboard/summary", p.AdminHandler.DashboardSummary)
+
+				protected.GET("/settings", p.AdminHandler.GetSettings)
+				protected.PUT("/settings", p.AdminHandler.UpdateSettings)
+				protected.GET("/settings/jwt-secret", p.AdminHandler.RevealClientJWTSecret)
+				protected.POST("/settings/generate-jwt-secret", p.AdminHandler.GenerateClientJWTSecret)
+
+				protected.GET("/admins", p.AdminHandler.ListAdmins)
+				protected.POST("/admins", p.AdminHandler.CreateAdmin)
+				protected.PUT("/admins/:id", p.AdminHandler.UpdateAdmin)
+
+				protected.GET("/audit-logs", p.AdminHandler.ListAuditLogs)
+				protected.GET("/audit-logs/export", p.AdminHandler.ExportAuditLogs)
+
+				protected.GET("/cron-jobs", p.AdminHandler.ListCronJobs)
+				protected.POST("/cron-jobs/preview", p.AdminHandler.PreviewCronSchedule)
+				protected.GET("/cron-jobs/:id/secrets", p.AdminHandler.RevealCronJobSecrets)
+				protected.PUT("/cron-jobs/:id", p.AdminHandler.UpdateCronJob)
+				protected.POST("/cron-jobs/:id/run", p.AdminHandler.RunCronJob)
+				protected.GET("/cron-jobs/:id/runs", p.AdminHandler.ListCronJobRuns)
+				protected.POST("/cron-jobs/:id/test-safekeep", p.AdminHandler.TestSafekeepConnection)
+
+				protected.POST("/migration/export", p.AdminHandler.MigrationExport)
+				protected.POST("/migration/inspect", p.AdminHandler.MigrationInspect)
+				protected.POST("/migration/import", p.AdminHandler.MigrationImport)
+			}
+		}
+	}
+
+	registerStaticRoutes(r)
+	return r
+}
+
+func registerStaticRoutes(r *gin.Engine) {
+	var staticFS fs.FS
+	if sub, err := fs.Sub(web.StaticFiles, "dist"); err == nil {
+		if _, statErr := fs.Stat(sub, "index.html"); statErr == nil {
+			staticFS = sub
+		}
+	}
+	if staticFS == nil {
+		staticFS, _ = fs.Sub(web.StaticFiles, ".")
+	}
+
+	fileServer := http.FileServer(http.FS(staticFS))
+
+	r.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") || strings.HasPrefix(c.Request.URL.Path, "/admin/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "not_found", "message": "endpoint not found"}})
+			return
+		}
+
+		reqPath := c.Request.URL.Path
+		clean := strings.TrimPrefix(path.Clean(reqPath), "/")
+		if clean == "." {
+			clean = ""
+		}
+
+		if reqPath == "/admin" || strings.HasPrefix(reqPath, "/admin/") {
+			if clean != "" {
+				if info, err := fs.Stat(staticFS, clean); err == nil && !info.IsDir() {
+					fileServer.ServeHTTP(c.Writer, c.Request)
+					return
+				}
+			}
+			if data, err := fs.ReadFile(staticFS, "admin/index.html"); err == nil {
+				c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+				return
+			}
+			c.String(http.StatusNotFound, "admin UI not built")
+			return
+		}
+
+		if clean != "" {
+			if info, err := fs.Stat(staticFS, clean); err == nil && !info.IsDir() {
+				fileServer.ServeHTTP(c.Writer, c.Request)
+				return
+			}
+		}
+		if data, err := fs.ReadFile(staticFS, "index.html"); err == nil {
+			c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+			return
+		}
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
+}
+
+func New(p Params) *http.Server {
+	r := NewRouter(p)
 	addr := fmt.Sprintf(":%d", p.Config.Server.Port)
 	srv := &http.Server{
 		Addr:    addr,

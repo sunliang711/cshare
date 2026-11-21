@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,10 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"crossshare-server/internal/config"
+	"crossshare-server/internal/db"
 	"crossshare-server/internal/handler"
 	"crossshare-server/internal/middleware"
 	"crossshare-server/internal/model"
 	"crossshare-server/internal/service"
+	"crossshare-server/internal/settings"
 	"crossshare-server/internal/storage"
 )
 
@@ -44,22 +47,9 @@ type apiResponse struct {
 func defaultConfig() *config.Config {
 	return &config.Config{
 		Server: config.ServerConfig{Port: 10431},
-		Auth: config.AuthConfig{
-			Enable:        false,
-			JWTSecret:     "test-secret",
-			JWTHeaderName: "Authorization",
-		},
-		Business: config.BusinessConfig{
-			DefaultTTL:      300,
-			MaxTTL:          2592000,
-			TextJSONLimit:   1 << 20,
-			FilesPushLimit:  20 << 20,
-			MaxFilesPerPush: 20,
-		},
-		RateLimit: config.RateLimitConfig{Enable: false},
 		CORS: config.CORSConfig{
 			AllowOrigins: []string{"*"},
-			AllowMethods: []string{"GET", "POST", "DELETE", "OPTIONS"},
+			AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowHeaders: []string{
 				"Content-Type", "Authorization", "X-Request-Id",
 				"Filename", "X-Content-Type", "X-TTL",
@@ -70,37 +60,57 @@ func defaultConfig() *config.Config {
 	}
 }
 
-func setupRouter(t *testing.T, opts ...func(*config.Config)) *gin.Engine {
+func defaultRuntimeSettings() db.SystemSettings {
+	s := db.DefaultSystemSettings()
+	s.DefaultTTL = 300
+	s.MaxTTL = 2592000
+	s.RateLimitEnable = false
+	return s
+}
+
+func setupRouter(t *testing.T, opts ...func(*db.SystemSettings)) *gin.Engine {
 	t.Helper()
 	cfg := defaultConfig()
+	rt := defaultRuntimeSettings()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&rt)
 	}
 	logger := zerolog.Nop()
 
-	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
-	ctx := context.Background()
-	if err := client.Ping(ctx).Err(); err != nil {
-		t.Skipf("Redis not available at %s: %v", cfg.Redis.Addr, err)
+	var store storage.Storage
+	if conn, dialErr := net.DialTimeout("tcp", cfg.Redis.Addr, 200*time.Millisecond); dialErr == nil {
+		_ = conn.Close()
+		client := redis.NewClient(&redis.Options{
+			Addr:     cfg.Redis.Addr,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		})
+		pingCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		err := client.Ping(pingCtx).Err()
+		cancel()
+		if err == nil {
+			client.FlushDB(context.Background())
+			t.Cleanup(func() {
+				client.FlushDB(context.Background())
+				client.Close()
+			})
+			store = storage.New(client, logger)
+		} else {
+			_ = client.Close()
+		}
 	}
-	client.FlushDB(ctx)
-	t.Cleanup(func() {
-		client.FlushDB(context.Background())
-		client.Close()
-	})
+	if store == nil {
+		store = storage.NewInMemoryStorage(logger)
+	}
 
-	store := storage.New(client, logger)
-	svc := service.NewShareService(store, cfg, logger)
+	settingsMgr := settings.NewStaticManager(rt)
+	svc := service.NewShareService(store, settingsMgr, logger)
 
 	healthH := handler.NewHealthHandler()
-	pushH := handler.NewPushHandler(svc, cfg, logger)
-	pullH := handler.NewPullHandler(svc, logger)
-	rl := middleware.NewRateLimiter(cfg)
-	authMw := middleware.Auth(cfg)
+	pushH := handler.NewPushHandler(svc, settingsMgr, nil, logger)
+	pullH := handler.NewPullHandler(svc, nil, logger)
+	rl := middleware.NewRateLimiter(settingsMgr)
+	authMw := middleware.Auth(settingsMgr)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -326,7 +336,7 @@ func TestPushText(t *testing.T) {
 	})
 
 	t.Run("ttl below minimum", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]any{"text": "hello", "ttl": 10})
+		body, _ := json.Marshal(map[string]any{"text": "hello", "ttl": -5})
 		w := doRequest(r, "POST", "/api/v1/push/text", bytes.NewReader(body),
 			map[string]string{"Content-Type": "application/json"})
 
@@ -347,8 +357,8 @@ func TestPushText(t *testing.T) {
 }
 
 func TestPushText_PayloadTooLarge(t *testing.T) {
-	r := setupRouter(t, func(cfg *config.Config) {
-		cfg.Business.TextJSONLimit = 100
+	r := setupRouter(t, func(s *db.SystemSettings) {
+		s.TextJSONLimit = 100
 	})
 
 	largeText := strings.Repeat("x", 200)
@@ -416,8 +426,8 @@ func TestPushBinary(t *testing.T) {
 }
 
 func TestPushBinary_PayloadTooLarge(t *testing.T) {
-	r := setupRouter(t, func(cfg *config.Config) {
-		cfg.Business.FilesPushLimit = 100
+	r := setupRouter(t, func(s *db.SystemSettings) {
+		s.FilesPushLimit = 100
 	})
 
 	data := make([]byte, 200)
@@ -732,9 +742,9 @@ func TestDelete(t *testing.T) {
 
 func TestAuth(t *testing.T) {
 	secret := "test-jwt-secret-key"
-	r := setupRouter(t, func(cfg *config.Config) {
-		cfg.Auth.Enable = true
-		cfg.Auth.JWTSecret = secret
+	r := setupRouter(t, func(s *db.SystemSettings) {
+		s.ClientAuthEnable = true
+		s.ClientJWTSecret = secret
 	})
 
 	t.Run("health does not require auth", func(t *testing.T) {

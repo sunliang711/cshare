@@ -169,6 +169,14 @@ func (s *P2PService) WaitMessages(ctx context.Context, sessionID string, to stri
 	}
 }
 
+func (s *P2PService) ActiveSessionCount() int {
+	now := time.Now().Unix()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanupExpiredLocked(now)
+	return len(s.sessions)
+}
+
 func (s *P2PService) CloseSession(ctx context.Context, sessionID string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

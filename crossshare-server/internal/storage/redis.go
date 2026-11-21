@@ -166,3 +166,43 @@ func (s *RedisStorage) GetHash(ctx context.Context, key string) (string, error) 
 func (s *RedisStorage) Expire(ctx context.Context, key string, ttl time.Duration) error {
 	return s.client.Expire(ctx, redisKey(key), ttl).Err()
 }
+
+func (s *RedisStorage) HealthCheck(ctx context.Context) (int64, error) {
+	start := time.Now()
+	err := s.client.Ping(ctx).Err()
+	return time.Since(start).Milliseconds(), err
+}
+
+func (s *RedisStorage) Stats(ctx context.Context) (StorageStats, error) {
+	stats := StorageStats{Backend: "redis"}
+	var cursor uint64
+	var keys []string
+	for {
+		batch, next, err := s.client.Scan(ctx, cursor, "share:*", 500).Result()
+		if err != nil {
+			return stats, err
+		}
+		keys = append(keys, batch...)
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	stats.ActiveShares = int64(len(keys))
+	if len(keys) == 0 {
+		return stats, nil
+	}
+
+	pipe := s.client.Pipeline()
+	cmds := make([]*redis.IntCmd, len(keys))
+	for i, k := range keys {
+		cmds[i] = pipe.HStrLen(ctx, k, "data")
+	}
+	_, _ = pipe.Exec(ctx)
+	for _, cmd := range cmds {
+		if n, err := cmd.Result(); err == nil && n > 0 {
+			stats.TotalBytes += n
+		}
+	}
+	return stats, nil
+}

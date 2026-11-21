@@ -10,22 +10,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"crossshare-server/internal/config"
+	"crossshare-server/internal/audit"
 	apperr "crossshare-server/internal/errors"
 	"crossshare-server/internal/service"
+	"crossshare-server/internal/settings"
 )
 
 type PushHandler struct {
-	svc    *service.ShareService
-	config *config.Config
-	logger zerolog.Logger
+	svc      *service.ShareService
+	settings *settings.Manager
+	audit    *audit.Recorder
+	logger   zerolog.Logger
 }
 
-func NewPushHandler(svc *service.ShareService, cfg *config.Config, logger zerolog.Logger) *PushHandler {
+func NewPushHandler(svc *service.ShareService, settingsMgr *settings.Manager, auditRec *audit.Recorder, logger zerolog.Logger) *PushHandler {
 	return &PushHandler{
-		svc:    svc,
-		config: cfg,
-		logger: logger.With().Str("handler", "push").Logger(),
+		svc:      svc,
+		settings: settingsMgr,
+		audit:    auditRec,
+		logger:   logger.With().Str("handler", "push").Logger(),
 	}
 }
 
@@ -39,7 +42,7 @@ type pushTextBody struct {
 const multipartOverheadLimit = 1 << 20
 
 func (h *PushHandler) PushText(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.config.Business.TextJSONLimit+4096)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.settings.Get().TextJSONLimit+4096)
 
 	var body pushTextBody
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -65,6 +68,7 @@ func (h *PushHandler) PushText(c *gin.Context) {
 		Creator:     c.GetString("creator"),
 	})
 	if err != nil {
+		h.auditPushFailure(c, "push.text", err)
 		if appErr, ok := err.(*apperr.AppError); ok {
 			respondError(c, appErr)
 			return
@@ -73,11 +77,24 @@ func (h *PushHandler) PushText(c *gin.Context) {
 		return
 	}
 
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "push.text",
+		ResourceType: "share",
+		ResourceID:   result.Key,
+		ShareKey:     result.Key,
+		Detail: map[string]any{
+			"type": result.Type,
+			"size": result.Size,
+			"ttl":  result.TTL,
+		},
+	})
 	respondSuccess(c, "push success", result)
 }
 
 func (h *PushHandler) PushBinary(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.config.Business.FilesPushLimit+1)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.settings.Get().FilesPushLimit+1)
 
 	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -113,6 +130,7 @@ func (h *PushHandler) PushBinary(c *gin.Context) {
 		Creator:     c.GetString("creator"),
 	})
 	if err != nil {
+		h.auditPushFailure(c, "push.binary", err)
 		if appErr, ok := err.(*apperr.AppError); ok {
 			respondError(c, appErr)
 			return
@@ -121,11 +139,25 @@ func (h *PushHandler) PushBinary(c *gin.Context) {
 		return
 	}
 
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "push.binary",
+		ResourceType: "share",
+		ResourceID:   result.Key,
+		ShareKey:     result.Key,
+		Detail: map[string]any{
+			"type":     result.Type,
+			"size":     result.Size,
+			"ttl":      result.TTL,
+			"filename": result.Filename,
+		},
+	})
 	respondSuccess(c, "push success", result)
 }
 
 func (h *PushHandler) PushFiles(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.config.Business.FilesPushLimit+multipartOverheadLimit)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.settings.Get().FilesPushLimit+multipartOverheadLimit)
 
 	form, err := c.MultipartForm()
 	if err != nil {
@@ -181,6 +213,7 @@ func (h *PushHandler) PushFiles(c *gin.Context) {
 		Creator: c.GetString("creator"),
 	})
 	if err != nil {
+		h.auditPushFailure(c, "push.files", err)
 		if appErr, ok := err.(*apperr.AppError); ok {
 			respondError(c, appErr)
 			return
@@ -189,7 +222,36 @@ func (h *PushHandler) PushFiles(c *gin.Context) {
 		return
 	}
 
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "push.files",
+		ResourceType: "share",
+		ResourceID:   result.Key,
+		ShareKey:     result.Key,
+		Detail: map[string]any{
+			"type":       result.Type,
+			"size":       result.Size,
+			"file_count": result.FileCount,
+			"ttl":        result.TTL,
+			"filename":   result.Filename,
+		},
+	})
 	respondSuccess(c, "push success", result)
+}
+
+func (h *PushHandler) auditPushFailure(c *gin.Context, action string, err error) {
+	if h.audit == nil {
+		return
+	}
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       action,
+		ResourceType: "share",
+		Status:       "failure",
+		Detail:       map[string]any{"error": err.Error()},
+	})
 }
 
 func (h *PushHandler) PushUnified(c *gin.Context) {

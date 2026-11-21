@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"crossshare-server/internal/audit"
 	apperr "crossshare-server/internal/errors"
 	"crossshare-server/internal/model"
 	"crossshare-server/internal/service"
@@ -17,12 +18,14 @@ var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9]{6,12}$`)
 
 type PullHandler struct {
 	svc    *service.ShareService
+	audit  *audit.Recorder
 	logger zerolog.Logger
 }
 
-func NewPullHandler(svc *service.ShareService, logger zerolog.Logger) *PullHandler {
+func NewPullHandler(svc *service.ShareService, auditRec *audit.Recorder, logger zerolog.Logger) *PullHandler {
 	return &PullHandler{
 		svc:    svc,
+		audit:  auditRec,
 		logger: logger.With().Str("handler", "pull").Logger(),
 	}
 }
@@ -36,6 +39,16 @@ func (h *PullHandler) Pull(c *gin.Context) {
 
 	share, err := h.svc.Pull(c.Request.Context(), key)
 	if err != nil {
+		h.audit.RecordFromGin(c, audit.Event{
+			ActorType:    "client",
+			ActorName:    c.GetString("creator"),
+			Action:       "pull",
+			ResourceType: "share",
+			ResourceID:   key,
+			ShareKey:     key,
+			Status:       "failure",
+			Detail:       map[string]any{"error": err.Error()},
+		})
 		if appErr, ok := err.(*apperr.AppError); ok {
 			respondError(c, appErr)
 			return
@@ -49,6 +62,21 @@ func (h *PullHandler) Pull(c *gin.Context) {
 	if deleteAfterPull {
 		deleted, _ = h.svc.Delete(c.Request.Context(), key)
 	}
+
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "pull",
+		ResourceType: "share",
+		ResourceID:   key,
+		ShareKey:     key,
+		Detail: map[string]any{
+			"type":              share.Type,
+			"size":              share.ContentSize,
+			"delete_after_pull": deleteAfterPull,
+			"deleted":           deleted,
+		},
+	})
 
 	accept := c.GetHeader("Accept")
 	if strings.Contains(accept, "application/json") {
@@ -133,6 +161,16 @@ func (h *PullHandler) Delete(c *gin.Context) {
 
 	deleted, err := h.svc.Delete(c.Request.Context(), key)
 	if err != nil {
+		h.audit.RecordFromGin(c, audit.Event{
+			ActorType:    "client",
+			ActorName:    c.GetString("creator"),
+			Action:       "delete",
+			ResourceType: "share",
+			ResourceID:   key,
+			ShareKey:     key,
+			Status:       "failure",
+			Detail:       map[string]any{"error": err.Error()},
+		})
 		if appErr, ok := err.(*apperr.AppError); ok {
 			respondError(c, appErr)
 			return
@@ -142,10 +180,28 @@ func (h *PullHandler) Delete(c *gin.Context) {
 	}
 
 	if !deleted {
+		h.audit.RecordFromGin(c, audit.Event{
+			ActorType:    "client",
+			ActorName:    c.GetString("creator"),
+			Action:       "delete",
+			ResourceType: "share",
+			ResourceID:   key,
+			ShareKey:     key,
+			Status:       "failure",
+			Detail:       map[string]any{"error": "share not found"},
+		})
 		respondError(c, apperr.ErrNotFound)
 		return
 	}
 
+	h.audit.RecordFromGin(c, audit.Event{
+		ActorType:    "client",
+		ActorName:    c.GetString("creator"),
+		Action:       "delete",
+		ResourceType: "share",
+		ResourceID:   key,
+		ShareKey:     key,
+	})
 	respondSuccess(c, "delete success", model.DeleteResult{
 		Key:     key,
 		Deleted: true,

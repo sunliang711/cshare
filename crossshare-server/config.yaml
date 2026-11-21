@@ -3,22 +3,8 @@ server:
   tls_enable: false
   crt_path: ""
   key_path: ""
-
-auth:
-  enable: false
-  jwt_secret: "change-me-in-production"
-  jwt_header_name: "Authorization"
-
-business:
-  default_ttl: 600
-  max_ttl: 86400 # 24 hours
-  text_json_limit: 1048576 # 1MB
-  files_push_limit: 20971520 # 20MB
-  max_files_per_push: 20
-
-ratelimit:
-  enable: true
-  requests_per_minute: 20
+  data_dir: "./data"
+  master_key: ""
 
 cors:
   allow_origins:
@@ -26,6 +12,7 @@ cors:
   allow_methods:
     - "GET"
     - "POST"
+    - "PUT"
     - "DELETE"
     - "OPTIONS"
   allow_headers:
