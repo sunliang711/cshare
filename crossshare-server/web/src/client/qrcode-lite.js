@@ -2286,67 +2286,44 @@ var qrcode = function() {
 
 }();
 
-(function (factory) {
-  if (typeof define === 'function' && define.amd) {
-      define([], factory);
-  } else if (typeof exports === 'object') {
-      module.exports = factory();
+
+export function renderQRCode(canvas, text, options) {
+  if (!canvas || !canvas.getContext) {
+    throw new Error('Canvas is not supported');
   }
-}(function () {
-    return qrcode;
-}));
-
-(() => {
-  function render(canvas, text, options) {
-    if (!canvas || !canvas.getContext) {
-      throw new Error('Canvas is not supported');
-    }
-    if (typeof qrcode !== 'function') {
-      throw new Error('QR library is not loaded');
-    }
-
-    if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) {
-      qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-    }
-
-    const qr = qrcode(0, (options && options.errorCorrectionLevel) || 'M');
-    qr.addData(text);
-    qr.make();
-    drawCanvas(canvas, qr, options && options.size ? options.size : 320);
+  if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) {
+    qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
   }
+  const qr = qrcode(0, (options && options.errorCorrectionLevel) || 'M');
+  qr.addData(text);
+  qr.make();
+  drawCanvas(canvas, qr, options && options.size ? options.size : 320);
+}
 
-  function drawCanvas(canvas, qr, requestedSize) {
-    const quietZone = 4;
-    const moduleCount = qr.getModuleCount();
-    const modules = moduleCount + quietZone * 2;
-    const scale = Math.max(1, Math.floor(requestedSize / modules));
-    const size = modules * scale;
-    const ratio = window.devicePixelRatio || 1;
-    const ctx = canvas.getContext('2d');
+function drawCanvas(canvas, qr, requestedSize) {
+  const quietZone = 4;
+  const moduleCount = qr.getModuleCount();
+  const modules = moduleCount + quietZone * 2;
+  const scale = Math.max(1, Math.floor(requestedSize / modules));
+  const size = modules * scale;
+  const ratio = window.devicePixelRatio || 1;
+  const ctx = canvas.getContext('2d');
 
-    canvas.width = size * ratio;
-    canvas.height = size * ratio;
-    canvas.style.width = size + 'px';
-    canvas.style.height = size + 'px';
+  canvas.width = size * ratio;
+  canvas.height = size * ratio;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
 
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#000';
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#000';
 
-    for (let row = 0; row < moduleCount; row++) {
-      for (let col = 0; col < moduleCount; col++) {
-        if (!qr.isDark(row, col)) continue;
-        ctx.fillRect(
-          (col + quietZone) * scale,
-          (row + quietZone) * scale,
-          scale,
-          scale,
-        );
-      }
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (!qr.isDark(row, col)) continue;
+      ctx.fillRect((col + quietZone) * scale, (row + quietZone) * scale, scale, scale);
     }
   }
-
-  window.CrossShareQR = { render };
-})();
+}

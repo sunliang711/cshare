@@ -10,3 +10,10 @@ build/
 .DS_Store
 *.swp
 .idea/
+crossshare-server/web/node_modules/
+crossshare-server/web/dist/
+crossshare-server/data/
+*.db
+*.db-shm
+*.db-wal
+master.key
