@@ -326,11 +326,11 @@ export const CronPage: React.FC = () => {
                   const humanCron = describeCron(job.cron_expr, lang)
                   return (
                     <tr key={job.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-                      <td className="px-4 py-3.5 min-w-[240px]">
+                      <td className="px-4 py-3.5 min-w-[180px] max-w-[260px]">
                         <div className="font-semibold text-slate-900 dark:text-slate-100">{name}</div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{desc}</div>
                         {job.last_summary && (
-                          <div className="text-[11px] text-slate-400 font-mono mt-1 truncate max-w-md" title={job.last_summary}>
+                          <div className="text-[11px] text-slate-400 font-mono mt-1 truncate max-w-xs" title={job.last_summary}>
                             {job.last_summary}
                           </div>
                         )}
@@ -371,8 +371,8 @@ export const CronPage: React.FC = () => {
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-500">
                         {job.enabled && job.next_run_at ? formatTime(job.next_run_at) : '—'}
                       </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap text-right">
-                        <div className="inline-flex items-center gap-1.5">
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
                           <button
                             type="button"
                             disabled={runningId === job.id}

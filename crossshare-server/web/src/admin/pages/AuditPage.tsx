@@ -286,7 +286,7 @@ export const AuditPage: React.FC = () => {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <StatusBadge status={log.status} />
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
                         type="button"
                         onClick={(e) => {

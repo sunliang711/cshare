@@ -17,8 +17,9 @@
 
 ### 前置依赖
 
-- Go 1.25+
-- Redis
+- Go 1.26+
+- Node.js 20+（构建内嵌 React Web UI）
+- Redis（可选，默认使用内存存储 `memory`）
 
 ### 1. 启动服务端
 
@@ -27,7 +28,9 @@ cd crossshare-server
 make dev
 ```
 
-服务默认监听 `http://localhost:10431`，内嵌 Web UI 可直接通过浏览器访问。
+服务默认监听 `http://localhost:10431`：
+- 客户端 Web UI：`http://localhost:10431/`
+- 管理控制台：`http://localhost:10431/admin`（首次访问引导创建管理员；未初始化前客户端可正常使用）
 
 ### 2. 使用 CLI
 
@@ -51,17 +54,18 @@ HTTP API 服务端，提供内容的上传、拉取、删除和自动过期功�
 
 ### 技术栈
 
-Go / Gin / Uber Fx / Redis / Viper / Zerolog / JWT
+Go / Gin / Uber Fx / SQLite (`modernc`) / Redis / Viper / Zerolog / JWT / React + Vite + Tailwind
 
 ### 构建与运行
 
 ```bash
 cd crossshare-server
 
-make dev        # 开发模式运行
+make web        # 构建前端静态资源到 ./web/dist
+make dev        # 构建前端并运行服务端
 make build      # 编译到 ./build/crossshare-server
 make run        # 编译并运行
-make test       # 运行测试
+make test       # 运行测试 (-race)
 make lint       # 代码检查
 ```
 
@@ -70,31 +74,35 @@ make lint       # 代码检查
 ```bash
 cd crossshare-server
 docker build -t crossshare-server .
-docker run -p 10431:10431 crossshare-server
+docker run -p 10431:10431 -v $(pwd)/data:/data crossshare-server
 ```
 
 CI 推送 `server/v*` 标签时自动构建多架构镜像（linux/amd64, linux/arm64）并发布到 Docker Hub。
 
 ### 配置
 
-通过 `config.yaml` 或环境变量（前缀 `CS_`，层级用 `_` 分隔）配置：
+`config.yaml` 与环境变量（前缀 `CS_`，层级用 `_` 分隔）仅保留服务部署相关参数：
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `server.port` | `10431` | 监听端口 |
 | `server.tls_enable` | `false` | 是否启用 TLS |
-| `auth.enable` | `false` | 是否启用 JWT 认证 |
-| `auth.jwt_secret` | `change-me-in-production` | JWT 密钥 |
-| `business.default_ttl` | `600` | 默认过期时间（秒） |
-| `business.max_ttl` | `2592000` | 最大 TTL（30 天） |
-| `business.text_json_limit` | `1048576` | 文本大小上限（1 MB） |
-| `business.files_push_limit` | `20971520` | 文件总大小上限（20 MB） |
-| `business.max_files_per_push` | `20` | 单次推送文件数量上限 |
-| `ratelimit.enable` | `true` | 是否启用限流 |
-| `ratelimit.requests_per_minute` | `60` | 每 IP 每分钟请求数 |
+| `server.data_dir` | `./data` | SQLite 数据库与加密主密钥 `master.key` 存放目录 |
+| `server.master_key` | 空 | 可选 32 字节主密钥（64 位十六进制或 Base64）；留空则自动生成 |
+| `storage.type` | `memory` | 分享内容存储后端：`memory` \| `redis` |
 | `redis.addr` | `localhost:6379` | Redis 地址 |
 
-环境变量示例：`CS_SERVER_PORT=8080`、`CS_REDIS_ADDR=redis:6379`。
+环境变量示例：`CS_SERVER_PORT=8080`、`CS_SERVER_DATA_DIR=/data`、`CS_REDIS_ADDR=redis:6379`。
+
+> 业务限额（TTL、文本/文件大小上限、文件数上限）、IP 限流、可选全局客户端 JWT 认证与审计策略均存储在 SQLite 中，请在 `/admin` 管理端 **「系统设置」** 页面实时配置并热生效。
+
+### 管理端特性（`/admin`）
+
+- **首次引导与多管理员**：首次访问 `/admin` 创建管理员（未初始化前不影响客户端正常推送与拉取）；支持登录、改密与多管理员管理。
+- **运行仪表盘**：实时查看活跃分享数、占用容量、今日推送/拉取/删除次数、P2P 会话数、存储健康度与 24 小时趋势快照。
+- **定时任务调度**：基于 `robfig/cron/v3`，内置清理过期审计日志、清理旧任务记录、存储健康巡检、统计快照，以及**每周自动备份到 SafeKeep**（支持测试连接与立即运行）。
+- **审计日志**：记录管理员变更与客户端推送/拉取/删除/P2P 操作，支持多维筛选、详情查看及 CSV / JSON 导出。
+- **环境迁移**：支持导出/预检/导入 `.csbundle` 迁移包（可选口令加密；不含客户端分享数据），新环境自动用目标主密钥重加密并热重载。
 
 ### API
 
