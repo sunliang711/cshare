@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: #334155;
+    background: #f5f7fb;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button, a, input, select, textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a {
+    transition: background-color 150ms, color 150ms, box-shadow 150ms;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  :focus-visible {
+    outline: 3px solid #a5b4fc;
+    outline-offset: 2px;
+  }
+
+  input:not([type='checkbox']):not([type='radio']), select, textarea {
+    min-width: 0;
+    border-color: #dce3ee;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px #6366f114;
+  }
+
+  input[type='checkbox'], input[type='radio'] {
+    accent-color: #4f46e5;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  input[type='file'] {
+    max-width: 100%;
+    padding: 12px;
+    border: 1px dashed #c7d2fe;
+    border-radius: 12px;
+    background: #f8faff;
+  }
+
+  input::file-selector-button {
+    border: 0;
+    border-radius: 7px;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 7px 12px;
+    margin-right: 10px;
+    cursor: pointer;
+  }
+
+  html.dark body {
+    color: #cbd5e1;
+    background: #0b1120;
+  }
+
+  html.dark :focus-visible {
+    outline: 3px solid #6366f1;
+    outline-offset: 2px;
+  }
+
+  html.dark input:not([type='checkbox']):not([type='radio']),
+  html.dark select,
+  html.dark textarea {
+    background-color: #0f172a;
+    color: #e2e8f0;
+    border-color: #334155;
+  }
+
+  html.dark input:not([type='checkbox']):not([type='radio'])::placeholder,
+  html.dark textarea::placeholder {
+    color: #64748b;
+  }
+
+  html.dark input:disabled,
+  html.dark select:disabled,
+  html.dark textarea:disabled {
+    background-color: #1e293b;
+    color: #94a3b8;
+  }
+
+  html.dark input[type='checkbox'],
+  html.dark input[type='radio'] {
+    accent-color: #6366f1;
+  }
+
+  html.dark input[type='file'] {
+    border-color: #4338ca;
+    background: #131c31;
+    color: #cbd5e1;
+  }
+
+  html.dark input::file-selector-button {
+    background: #312e81;
+    color: #c7d2fe;
+  }
+}
+
+@layer components {
+  .app-sidebar {
+    background: linear-gradient(170deg, #141d36 0%, #10182c 70%);
+    box-shadow: 4px 0 24px #0f172a08;
+  }
+
+  .primary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    background: #4f46e5;
+    box-shadow: 0 1px 2px #4f46e533;
+  }
+
+  .primary-button:hover:not(:disabled) {
+    background: #4338ca;
+  }
+
+  .primary-button:disabled {
+    opacity: 0.5;
+  }
+
+  .secondary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    background: #fff;
+    border: 1px solid #dce3ee;
+  }
+
+  .secondary-button:hover:not(:disabled) {
+    background: #f8fafc;
+  }
+
+  html.dark .secondary-button {
+    color: #e2e8f0;
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  html.dark .secondary-button:hover:not(:disabled) {
+    background: #334155;
+  }
+}
