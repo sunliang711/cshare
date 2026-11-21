@@ -149,7 +149,7 @@ export const en: Record<TranslationKey, string> = {
   'cron.job.storage_health_check.desc': 'Check Redis / memory storage connectivity and latency',
   'cron.job.stats_snapshot.name': 'Stats Snapshot',
   'cron.job.stats_snapshot.desc': 'Record hourly share count, storage size, and traffic stats',
-  'cron.job.safekeep_backup.name': 'Weekly Backup to SafeKeep',
+  'cron.job.safekeep_backup.name': 'Backup to SafeKeep',
   'cron.job.safekeep_backup.desc': 'Export migration bundle and upload to SafeKeep gateway',
   'cron.preset.every5m': 'Every 5 min',
   'cron.preset.hourly': 'Hourly',

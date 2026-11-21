@@ -267,7 +267,7 @@ func (s *Store) seedDefaults(ctx context.Context) error {
 		{
 			key:        "safekeep_backup",
 			name:       "备份环境到 SafeKeep",
-			desc:       "每周生成环境迁移包（系统设置、定时任务及可选管理员/审计日志）并自动上传至 SafeKeep",
+			desc:       "按计划生成环境迁移包（系统设置、定时任务及可选管理员/审计日志）并自动上传至 SafeKeep",
 			expr:       "0 3 * * 0",
 			enabled:    0,
 			timeoutSec: 300,
