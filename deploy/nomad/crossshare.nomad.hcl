@@ -1,6 +1,6 @@
 variable "image" {
   type    = string
-  default = "sunliang711/crossshare-server:latest"
+  default = "sunliang711/crossshare-server:v0.3.0"
 }
 
 job "crossshare" {
@@ -22,8 +22,9 @@ job "crossshare" {
 
     network {
       port "http" {
-        static = 10431
+        static = 8400
         to     = 10431
+        host_network = "loopback"
       }
     }
 
@@ -59,7 +60,7 @@ job "crossshare" {
         # CS_SERVER_MASTER_KEY = ""
 
         # --- 分享内容存储后端：memory | redis ---
-        CS_STORAGE_TYPE = "memory"
+        CS_STORAGE_TYPE = "redis"
         # 若使用外部 Redis，请将 CS_STORAGE_TYPE 改为 "redis" 并取消下方注释：
         # CS_REDIS_ADDR     = "127.0.0.1:6379"
         # CS_REDIS_USERNAME = ""
@@ -83,7 +84,52 @@ job "crossshare" {
 
       config {
         image = var.image
+        force_pull = false
         ports = ["http"]
+        logging {
+          type = "json-file"
+          config {
+            max-file = "2"
+            max-size = "1m"
+          }
+        }
+      }
+
+      identity {
+        name = "vault_default"
+        aud  = ["vault.io"]
+        file = true
+        ttl  = "1h"
+      }
+
+      vault {
+        cluster = "default"
+        role    = "working-service"
+      }
+
+      template {
+
+    data = <<EOH
+CS_REDIS_DB       = "0"
+{{ with secret "kv/data/working-service/redis" }}
+{{ $redis_password := .Data.data.redis_password }}
+{{ range nomadService "redis" }}
+CS_REDIS_ADDR={{ .Address }}:{{ .Port }}
+CS_REDIS_USERNAME=
+CS_REDIS_PASSWORD={{ $redis_password }}
+{{ end }}
+{{ end }}
+EOH
+    destination = "secrets/redis.env"
+    env         = true
+    change_mode = "restart"
+  }
+      service {
+          name = "crossshare"
+          port = "http"
+          provider = "nomad"
+          # 服务中的地址从driver(docker)中取得
+          address_mode = "driver"
       }
 
       resources {
