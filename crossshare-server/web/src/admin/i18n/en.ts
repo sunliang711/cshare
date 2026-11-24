@@ -91,6 +91,16 @@ export const en: Record<TranslationKey, string> = {
   'auth.reloginSubmit': 'Sign In & Continue',
   'auth.backToLogin': 'Sign Out',
   'auth.reloginSuccess': 'Session restored',
+  'auth.resetAdminBanner':
+    'RESET_ADMIN (or server.reset_admin) is currently active. Remove it from your deployment configuration after setting a new password to avoid resetting it again on restart.',
+  'auth.forgotTitle': 'Forgot admin password?',
+  'auth.forgotDesc':
+    'Set RESET_ADMIN=true (or server.reset_admin: true in config.yaml) and restart the server, then sign in with the username and temporary password printed in the startup logs.',
+  'auth.forcePasswordTitle': 'Set New Admin Password',
+  'auth.forcePasswordSubtitle':
+    'Account {username} is using a temporary reset password. Set a new password to activate the console.',
+  'auth.newPassword': 'New Password',
+  'auth.forcePasswordSubmit': 'Save Password & Enter',
 
   'dash.title': 'Dashboard',
   'dash.subtitle': 'Monitor storage health, today’s sharing traffic, active P2P sessions, and cron status',

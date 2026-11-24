@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -28,10 +32,11 @@ type AdminHandler struct {
 	sched     *scheduler.Engine
 	mig       *migration.Service
 	storage   storage.Storage
-	p2p       *service.P2PService
-	jwtSecret []byte
-	version   string
-	logger    zerolog.Logger
+	p2p        *service.P2PService
+	jwtSecret  []byte
+	version    string
+	resetAdmin bool
+	logger     zerolog.Logger
 }
 
 func NewAdminHandler(
@@ -64,6 +69,64 @@ func (h *AdminHandler) SetVersion(v string) {
 	if strings.TrimSpace(v) != "" {
 		h.version = v
 	}
+}
+
+func (h *AdminHandler) SetResetAdmin(enabled bool) {
+	h.resetAdmin = enabled
+}
+
+// BootstrapReset resets the primary admin password to a temporary password on startup when RESET_ADMIN is active.
+func (h *AdminHandler) BootstrapReset(ctx context.Context, out io.Writer) (string, error) {
+	if !h.resetAdmin || h.store == nil {
+		return "", nil
+	}
+	if out == nil {
+		out = os.Stdout
+	}
+
+	tempPassword, err := crypto.GenerateTemporaryPassword(20)
+	if err != nil {
+		return "", fmt.Errorf("generate temporary admin password: %w", err)
+	}
+	hash, err := crypto.HashPassword(tempPassword)
+	if err != nil {
+		return "", fmt.Errorf("hash temporary admin password: %w", err)
+	}
+
+	admin, err := h.store.ResetPrimaryAdminPassword(ctx, hash)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			fmt.Fprintf(out, "\n========================================================================\n")
+			fmt.Fprintf(out, "  CrossShare - RESET_ADMIN Active (No Admin Accounts Found)\n")
+			fmt.Fprintf(out, "  Action Required : Open /admin to create the initial admin account,\n")
+			fmt.Fprintf(out, "                    then remove RESET_ADMIN / server.reset_admin.\n")
+			fmt.Fprintf(out, "========================================================================\n\n")
+			return "", nil
+		}
+		return "", fmt.Errorf("reset primary admin password: %w", err)
+	}
+
+	fmt.Fprintf(out, "\n========================================================================\n")
+	fmt.Fprintf(out, "  CrossShare - Web UI Admin Credentials (Admin Password Reset)\n")
+	fmt.Fprintf(out, "  Username           : %s\n", admin.Username)
+	fmt.Fprintf(out, "  Temporary Password : %s\n", tempPassword)
+	fmt.Fprintf(out, "  Action Required    : Sign in to /admin and set a new password,\n")
+	fmt.Fprintf(out, "                       then remove RESET_ADMIN / server.reset_admin.\n")
+	fmt.Fprintf(out, "========================================================================\n\n")
+
+	if h.audit != nil {
+		h.audit.Record(audit.Event{
+			ActorType:    "system",
+			ActorID:      "bootstrap",
+			ActorName:    "system",
+			Action:       "admin.password_reset_bootstrap",
+			ResourceType: "admin",
+			ResourceID:   admin.ID,
+			Detail:       map[string]any{"username": admin.Username},
+		})
+	}
+	h.logger.Warn().Str("username", admin.Username).Msg("admin password reset via RESET_ADMIN; temporary password printed to stdout")
+	return tempPassword, nil
 }
 
 func (h *AdminHandler) JWTSecret() []byte {
@@ -107,8 +170,9 @@ func (h *AdminHandler) SetupStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"initialized": n > 0,
-		"version":     h.version,
+		"initialized":            n > 0,
+		"version":                h.version,
+		"reset_admin_env_active": h.resetAdmin,
 	})
 }
 
@@ -160,7 +224,11 @@ func (h *AdminHandler) SetupInit(c *gin.Context) {
 		ResourceType: "admin",
 		ResourceID:   admin.ID,
 	})
-	c.JSON(http.StatusCreated, gin.H{"admin": admin, "token": tok})
+	c.JSON(http.StatusCreated, gin.H{
+		"admin":                  admin,
+		"token":                  tok,
+		"reset_admin_env_active": h.resetAdmin,
+	})
 }
 
 func (h *AdminHandler) Login(c *gin.Context) {
@@ -201,7 +269,11 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		ResourceType: "admin",
 		ResourceID:   admin.ID,
 	})
-	c.JSON(http.StatusOK, gin.H{"admin": admin, "token": tok})
+	c.JSON(http.StatusOK, gin.H{
+		"admin":                  admin,
+		"token":                  tok,
+		"reset_admin_env_active": h.resetAdmin,
+	})
 }
 
 func (h *AdminHandler) Logout(c *gin.Context) {
@@ -229,8 +301,9 @@ func (h *AdminHandler) Logout(c *gin.Context) {
 
 func (h *AdminHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"admin":   middleware.CurrentAdmin(c),
-		"version": h.version,
+		"admin":                  middleware.CurrentAdmin(c),
+		"version":                h.version,
+		"reset_admin_env_active": h.resetAdmin,
 	})
 }
 
@@ -244,12 +317,18 @@ func (h *AdminHandler) ChangePassword(c *gin.Context) {
 		writeAdminError(c, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if !crypto.VerifyPassword(admin.PasswordHash, req.OldPassword) {
-		writeAdminError(c, http.StatusBadRequest, "invalid_password", "current password is incorrect")
-		return
+	if !admin.MustChangePassword || req.OldPassword != "" {
+		if strings.TrimSpace(req.OldPassword) == "" || !crypto.VerifyPassword(admin.PasswordHash, req.OldPassword) {
+			writeAdminError(c, http.StatusBadRequest, "invalid_password", "current password is incorrect")
+			return
+		}
 	}
 	if len(req.NewPassword) < 8 {
 		writeAdminError(c, http.StatusBadRequest, "weak_password", "new password must be at least 8 characters")
+		return
+	}
+	if len(req.NewPassword) > 72 {
+		writeAdminError(c, http.StatusBadRequest, "weak_password", "new password must not exceed 72 characters")
 		return
 	}
 	hash, err := crypto.HashPassword(req.NewPassword)
@@ -262,6 +341,7 @@ func (h *AdminHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	admin.PasswordHash = hash
+	admin.MustChangePassword = false
 	if tok, err := middleware.SignAdminToken(h.jwtSecret, admin); err == nil {
 		h.setAdminCookie(c, tok)
 	}
@@ -273,7 +353,11 @@ func (h *AdminHandler) ChangePassword(c *gin.Context) {
 		ResourceType: "admin",
 		ResourceID:   admin.ID,
 	})
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, gin.H{
+		"status":                 "ok",
+		"admin":                  admin,
+		"reset_admin_env_active": h.resetAdmin,
+	})
 }
 
 // --- Admins Management ---

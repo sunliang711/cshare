@@ -7,7 +7,7 @@ import type { Admin } from '../types'
 interface ReauthModalProps {
   open: boolean
   defaultUsername: string
-  onSuccess: (admin: Admin) => void
+  onSuccess: (admin: Admin, resetAdminEnvActive?: boolean) => void
   onCancel: () => void
   onSignOut: () => void
 }
@@ -68,7 +68,7 @@ export const ReauthModal: React.FC<ReauthModalProps> = ({
     setLoading(true)
     try {
       const res = await api.login(username, password)
-      onSuccess(res.admin)
+      onSuccess(res.admin, res.reset_admin_env_active)
     } catch (err: any) {
       setError(
         err?.message === 'invalid username or password'

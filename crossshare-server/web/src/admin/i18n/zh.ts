@@ -89,6 +89,15 @@ export const zh = {
   'auth.reloginSubmit': '重新登录并继续',
   'auth.backToLogin': '退出到登录页',
   'auth.reloginSuccess': '登录状态已恢复',
+  'auth.resetAdminBanner':
+    '检测到环境变量 RESET_ADMIN（或 server.reset_admin）处于启用状态。完成管理员密码设置后，请及时移除该配置，以免下次服务重启时再次重置密码。',
+  'auth.forgotTitle': '忘记管理员密码？',
+  'auth.forgotDesc':
+    '请在服务端设置环境变量 RESET_ADMIN=true（或在 config.yaml 中设置 server.reset_admin: true）并重启服务，然后使用启动日志打印的用户名和临时密码登录。',
+  'auth.forcePasswordTitle': '设置新的管理员密码',
+  'auth.forcePasswordSubtitle': '账号 {username} 当前使用的是重置后的临时密码，请先设置新密码以激活管理控制台。',
+  'auth.newPassword': '新密码',
+  'auth.forcePasswordSubmit': '保存新密码并进入',
 
   'dash.title': '运行仪表盘',
   'dash.subtitle': '实时掌握分享存储状态、今日吞吐、P2P 会话与定时任务健康度',

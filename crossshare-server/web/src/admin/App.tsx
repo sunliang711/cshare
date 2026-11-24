@@ -27,15 +27,17 @@ function initialTab(): NavTab {
 interface AuthenticatedShellProps {
   admin: Admin
   version: string
+  resetAdminEnvActive: boolean
   tab: NavTab
   onNavigate: (next: NavTab) => void
-  onAdminUpdate: (admin: Admin) => void
+  onAdminUpdate: (admin: Admin, resetAdminEnvActive?: boolean) => void
   onSignedOut: () => void
 }
 
 function AuthenticatedShell({
   admin,
   version,
+  resetAdminEnvActive,
   tab,
   onNavigate,
   onAdminUpdate,
@@ -71,7 +73,7 @@ function AuthenticatedShell({
       if (Date.now() - getLastAuthedAt() < SESSION_CHECK_INTERVAL_MS) return
       api
         .me()
-        .then((me) => onAdminUpdate(me.admin))
+        .then((me) => onAdminUpdate(me.admin, me.reset_admin_env_active))
         .catch(() => {})
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
@@ -101,6 +103,7 @@ function AuthenticatedShell({
         onNavigate={onNavigate}
         admin={admin}
         version={version}
+        resetAdminEnvActive={resetAdminEnvActive}
         onLogout={handleLogout}
       >
         {tab === 'dashboard' && <DashboardPage onNavigate={onNavigate} />}
@@ -113,8 +116,8 @@ function AuthenticatedShell({
       <ReauthModal
         open={reauthOpen}
         defaultUsername={admin.username}
-        onSuccess={(nextAdmin) => {
-          onAdminUpdate(nextAdmin)
+        onSuccess={(nextAdmin, nextResetActive) => {
+          onAdminUpdate(nextAdmin, nextResetActive)
           settleReauth(true)
           toast.success(t('auth.reloginSuccess'))
         }}
@@ -132,6 +135,7 @@ export function App() {
   const [initialized, setInitialized] = useState(true)
   const [admin, setAdmin] = useState<Admin | null>(null)
   const [version, setVersion] = useState('dev')
+  const [resetAdminEnvActive, setResetAdminEnvActive] = useState(false)
   const [tab, setTab] = useState<NavTab>(initialTab)
 
   useEffect(() => {
@@ -142,11 +146,17 @@ export function App() {
         const st = await api.setupStatus()
         setInitialized(st.initialized)
         if (st.version) setVersion(st.version)
+        if (typeof st.reset_admin_env_active === 'boolean') {
+          setResetAdminEnvActive(st.reset_admin_env_active)
+        }
         if (st.initialized) {
           try {
             const me = await api.me()
             setAdmin(me.admin)
             if (me.version) setVersion(me.version)
+            if (typeof me.reset_admin_env_active === 'boolean') {
+              setResetAdminEnvActive(me.reset_admin_env_active)
+            }
           } catch {
             setAdmin(null)
           }
@@ -167,6 +177,13 @@ export function App() {
     window.history.pushState({}, '', path)
     window.scrollTo({ top: 0 })
   }
+
+  const handleAdminUpdate = useCallback((nextAdmin: Admin, nextResetActive?: boolean) => {
+    setAdmin(nextAdmin)
+    if (typeof nextResetActive === 'boolean') {
+      setResetAdminEnvActive(nextResetActive)
+    }
+  }, [])
 
   const handleSignedOut = useCallback(() => {
     setAdmin(null)
@@ -198,16 +215,44 @@ export function App() {
       <AuthPage
         mode="setup"
         version={version}
-        onSuccess={(a) => {
+        resetAdminEnvActive={resetAdminEnvActive}
+        onSuccess={(a, nextResetActive) => {
           setInitialized(true)
-          setAdmin(a)
+          handleAdminUpdate(a, nextResetActive)
         }}
       />
     )
   }
 
   if (!admin) {
-    return <AuthPage mode="login" version={version} onSuccess={(a) => setAdmin(a)} />
+    return (
+      <AuthPage
+        mode="login"
+        version={version}
+        resetAdminEnvActive={resetAdminEnvActive}
+        onSuccess={handleAdminUpdate}
+      />
+    )
+  }
+
+  if (admin.must_change_password) {
+    return (
+      <AuthPage
+        mode="force-password"
+        version={version}
+        resetAdminEnvActive={resetAdminEnvActive}
+        forcedAdmin={admin}
+        onSuccess={handleAdminUpdate}
+        onLogout={async () => {
+          try {
+            await api.logout()
+          } catch {
+            // ignore
+          }
+          handleSignedOut()
+        }}
+      />
+    )
   }
 
   return (
@@ -215,9 +260,10 @@ export function App() {
       <AuthenticatedShell
         admin={admin}
         version={version}
+        resetAdminEnvActive={resetAdminEnvActive}
         tab={tab}
         onNavigate={navigate}
-        onAdminUpdate={setAdmin}
+        onAdminUpdate={handleAdminUpdate}
         onSignedOut={handleSignedOut}
       />
     </ToastProvider>

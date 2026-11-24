@@ -89,6 +89,7 @@ CI 推送 `server/v*` 标签时自动构建多架构镜像（linux/amd64, linux/
 | `server.tls_enable` | `false` | 是否启用 TLS |
 | `server.data_dir` | `./data` | SQLite 数据库与加密主密钥 `master.key` 存放目录 |
 | `server.master_key` | 空 | 可选 32 字节主密钥（64 位十六进制或 Base64）；留空则自动生成 |
+| `server.reset_admin` | `false` | 忘记密码时设为 `true`（或设置环境变量 `RESET_ADMIN=true`），重启后将重置主管理员为临时密码并强制改密 |
 | `storage.type` | `memory` | 分享内容存储后端：`memory` \| `redis` |
 | `redis.addr` | `localhost:6379` | Redis 地址 |
 
@@ -98,7 +99,7 @@ CI 推送 `server/v*` 标签时自动构建多架构镜像（linux/amd64, linux/
 
 ### 管理端特性（`/admin`）
 
-- **首次引导与多管理员**：首次访问 `/admin` 创建管理员（未初始化前不影响客户端正常推送与拉取）；支持登录、改密与多管理员管理。
+- **首次引导、多管理员与密码重置**：首次访问 `/admin` 创建管理员（未初始化前不影响客户端正常推送与拉取）；支持登录、改密与多管理员管理；忘记密码时可通过 `RESET_ADMIN=true`（或 `server.reset_admin: true`）重启生成临时密码，登录后强制设置新密码。
 - **运行仪表盘**：实时查看活跃分享数、占用容量、今日推送/拉取/删除次数、P2P 会话数、存储健康度与 24 小时趋势快照。
 - **定时任务调度**：基于 `robfig/cron/v3`，内置清理过期审计日志、清理旧任务记录、存储健康巡检、统计快照，以及**每周自动备份到 SafeKeep**（支持测试连接与立即运行）。
 - **审计日志**：记录管理员变更与客户端推送/拉取/删除/P2P 操作，支持多维筛选、详情查看及 CSV / JSON 导出。

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"crossshare-server/internal/audit"
+	"crossshare-server/internal/config"
 	"crossshare-server/internal/crypto"
 	"crossshare-server/internal/db"
 	"crossshare-server/internal/handler"
@@ -38,6 +39,7 @@ type testHarness struct {
 	auditRec    *audit.Recorder
 	sched       *scheduler.Engine
 	mig         *migration.Service
+	adminH      *handler.AdminHandler
 }
 
 func setupFullApp(t *testing.T, skServer *httptest.Server) *testHarness {
@@ -99,6 +101,7 @@ func setupFullApp(t *testing.T, skServer *httptest.Server) *testHarness {
 		auditRec:    auditRec,
 		sched:       sched,
 		mig:         migSvc,
+		adminH:      adminH,
 	}
 }
 
@@ -309,4 +312,117 @@ func TestAdminEndToEndFlow(t *testing.T) {
 	// 6. Dashboard summary
 	wDash := doAdminReq(h.router, "GET", "/admin/api/v1/dashboard/summary", nil, cookies, nil)
 	require.Equal(t, http.StatusOK, wDash.Code)
+}
+
+func TestAdminResetPasswordFlow(t *testing.T) {
+	h := setupFullApp(t, nil)
+
+	// 1. BootstrapReset when disabled does nothing
+	var noopBuf bytes.Buffer
+	tempPass, err := h.adminH.BootstrapReset(t.Context(), &noopBuf)
+	require.NoError(t, err)
+	assert.Empty(t, tempPass)
+	assert.Empty(t, noopBuf.String())
+
+	// 2. Initialize first admin (custom username, not necessarily "admin")
+	initBody, _ := json.Marshal(map[string]string{"username": "eagle", "password": "oldpassword123"})
+	wInit := doAdminReq(h.router, "POST", "/admin/api/v1/setup/init", bytes.NewReader(initBody), nil, map[string]string{"Content-Type": "application/json"})
+	require.Equal(t, http.StatusCreated, wInit.Code)
+	oldCookies := wInit.Result().Cookies()
+	require.NotEmpty(t, oldCookies)
+
+	wDash := doAdminReq(h.router, "GET", "/admin/api/v1/dashboard/summary", nil, oldCookies, nil)
+	require.Equal(t, http.StatusOK, wDash.Code)
+
+	// 3. Simulate restart with RESET_ADMIN=true
+	h.adminH.SetResetAdmin(true)
+	var outBuf bytes.Buffer
+	tempPass, err = h.adminH.BootstrapReset(t.Context(), &outBuf)
+	require.NoError(t, err)
+	assert.NotEmpty(t, tempPass)
+	assert.Contains(t, outBuf.String(), "eagle")
+	assert.Contains(t, outBuf.String(), tempPass)
+
+	// Setup status exposes reset_admin_env_active=true
+	wSt := doAdminReq(h.router, "GET", "/admin/api/v1/setup/status", nil, nil, nil)
+	require.Equal(t, http.StatusOK, wSt.Code)
+	var st struct {
+		Initialized         bool `json:"initialized"`
+		ResetAdminEnvActive bool `json:"reset_admin_env_active"`
+	}
+	require.NoError(t, json.Unmarshal(wSt.Body.Bytes(), &st))
+	assert.True(t, st.Initialized)
+	assert.True(t, st.ResetAdminEnvActive)
+
+	// Old session and old password are invalidated
+	wOldSess := doAdminReq(h.router, "GET", "/admin/api/v1/dashboard/summary", nil, oldCookies, nil)
+	assert.Equal(t, http.StatusUnauthorized, wOldSess.Code)
+
+	badLogin, _ := json.Marshal(map[string]string{"username": "eagle", "password": "oldpassword123"})
+	wBadLogin := doAdminReq(h.router, "POST", "/admin/api/v1/auth/login", bytes.NewReader(badLogin), nil, map[string]string{"Content-Type": "application/json"})
+	assert.Equal(t, http.StatusUnauthorized, wBadLogin.Code)
+
+	// 4. Login with temporary password succeeds with must_change_password=true
+	tmpLogin, _ := json.Marshal(map[string]string{"username": "eagle", "password": tempPass})
+	wTmpLogin := doAdminReq(h.router, "POST", "/admin/api/v1/auth/login", bytes.NewReader(tmpLogin), nil, map[string]string{"Content-Type": "application/json"})
+	require.Equal(t, http.StatusOK, wTmpLogin.Code)
+	var loginRes struct {
+		Admin               db.Admin `json:"admin"`
+		ResetAdminEnvActive bool     `json:"reset_admin_env_active"`
+	}
+	require.NoError(t, json.Unmarshal(wTmpLogin.Body.Bytes(), &loginRes))
+	assert.True(t, loginRes.Admin.MustChangePassword)
+	assert.True(t, loginRes.ResetAdminEnvActive)
+	tempCookies := wTmpLogin.Result().Cookies()
+	require.NotEmpty(t, tempCookies)
+
+	// Console endpoints are blocked until password is changed, while /auth/me remains accessible
+	wMe := doAdminReq(h.router, "GET", "/admin/api/v1/auth/me", nil, tempCookies, nil)
+	require.Equal(t, http.StatusOK, wMe.Code)
+
+	wBlocked := doAdminReq(h.router, "GET", "/admin/api/v1/dashboard/summary", nil, tempCookies, nil)
+	require.Equal(t, http.StatusForbidden, wBlocked.Code)
+	assert.Contains(t, wBlocked.Body.String(), "password_change_required")
+
+	// 5. Forced password change succeeds without old_password
+	chgBody, _ := json.Marshal(map[string]string{"new_password": "newStrongPassword123"})
+	wChg := doAdminReq(h.router, "PUT", "/admin/api/v1/auth/password", bytes.NewReader(chgBody), tempCookies, map[string]string{"Content-Type": "application/json"})
+	require.Equal(t, http.StatusOK, wChg.Code)
+	var chgRes struct {
+		Status string   `json:"status"`
+		Admin  db.Admin `json:"admin"`
+	}
+	require.NoError(t, json.Unmarshal(wChg.Body.Bytes(), &chgRes))
+	assert.Equal(t, "ok", chgRes.Status)
+	assert.False(t, chgRes.Admin.MustChangePassword)
+	newCookies := wChg.Result().Cookies()
+	require.NotEmpty(t, newCookies)
+
+	// Old temporary session is invalidated and new session can access console
+	wTmpAfter := doAdminReq(h.router, "GET", "/admin/api/v1/dashboard/summary", nil, tempCookies, nil)
+	assert.Equal(t, http.StatusUnauthorized, wTmpAfter.Code)
+
+	wAllowed := doAdminReq(h.router, "GET", "/admin/api/v1/dashboard/summary", nil, newCookies, nil)
+	require.Equal(t, http.StatusOK, wAllowed.Code)
+}
+
+func TestAdminResetWhenEmptyAndConfigEnv(t *testing.T) {
+	h := setupFullApp(t, nil)
+	h.adminH.SetResetAdmin(true)
+
+	var outBuf bytes.Buffer
+	tempPass, err := h.adminH.BootstrapReset(t.Context(), &outBuf)
+	require.NoError(t, err)
+	assert.Empty(t, tempPass)
+	assert.Contains(t, outBuf.String(), "No Admin Accounts Found")
+
+	t.Setenv("RESET_ADMIN", "true")
+	cfg, err := config.New()
+	require.NoError(t, err)
+	assert.True(t, cfg.Server.ResetAdmin)
+
+	t.Setenv("RESET_ADMIN", "false")
+	cfg2, err := config.New()
+	require.NoError(t, err)
+	assert.False(t, cfg2.Server.ResetAdmin)
 }

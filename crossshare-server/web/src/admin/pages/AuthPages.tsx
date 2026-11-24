@@ -1,17 +1,28 @@
 import React, { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Share2, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, LogOut, Share2, ShieldCheck } from 'lucide-react'
 import { api } from '../api'
 import { PreferenceControls } from '../components/PreferenceControls'
+import { ResetAdminBanner } from '../components/ResetAdminBanner'
 import { useI18n } from '../contexts/I18nContext'
 import type { Admin } from '../types'
 
 interface Props {
-  mode: 'setup' | 'login'
+  mode: 'setup' | 'login' | 'force-password'
   version?: string
-  onSuccess: (admin: Admin) => void
+  resetAdminEnvActive?: boolean
+  forcedAdmin?: Admin | null
+  onSuccess: (admin: Admin, resetAdminEnvActive?: boolean) => void
+  onLogout?: () => void
 }
 
-export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) => {
+export const AuthPage: React.FC<Props> = ({
+  mode,
+  version = 'dev',
+  resetAdminEnvActive = false,
+  forcedAdmin = null,
+  onSuccess,
+  onLogout,
+}) => {
   const { t } = useI18n()
   const versionLabel = version && version !== 'dev' && !version.startsWith('v') ? `v${version}` : version || 'dev'
   const [username, setUsername] = useState('')
@@ -24,15 +35,28 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (mode === 'setup' && password !== confirm) {
+    if ((mode === 'setup' || mode === 'force-password') && password !== confirm) {
       setError(t('auth.passwordMismatch'))
       return
     }
     setLoading(true)
     try {
+      if (mode === 'force-password') {
+        const res = await api.changePassword('', password)
+        const nextAdmin: Admin = res.admin || {
+          ...(forcedAdmin as Admin),
+          must_change_password: false,
+        }
+        setPassword('')
+        setConfirm('')
+        onSuccess(nextAdmin, res.reset_admin_env_active)
+        return
+      }
       const res =
         mode === 'setup' ? await api.setupInit(username, password) : await api.login(username, password)
-      onSuccess(res.admin)
+      setPassword('')
+      setConfirm('')
+      onSuccess(res.admin, res.reset_admin_env_active)
     } catch (err: any) {
       setError(
         err.message === 'invalid username or password'
@@ -43,6 +67,27 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
       setLoading(false)
     }
   }
+
+  const title =
+    mode === 'setup'
+      ? t('auth.setupTitle')
+      : mode === 'force-password'
+        ? t('auth.forcePasswordTitle')
+        : t('auth.loginTitle')
+
+  const subtitle =
+    mode === 'setup'
+      ? t('auth.setupSubtitle')
+      : mode === 'force-password'
+        ? t('auth.forcePasswordSubtitle', { username: forcedAdmin?.username || 'admin' })
+        : t('auth.loginSubtitle')
+
+  const submitLabel =
+    mode === 'setup'
+      ? t('auth.setupSubmit')
+      : mode === 'force-password'
+        ? t('auth.forcePasswordSubmit')
+        : t('auth.loginSubmit')
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-[#f7f9fc] dark:bg-[#0b1120] transition-colors">
@@ -88,18 +133,16 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
           </a>
         </div>
 
+        <ResetAdminBanner active={resetAdminEnvActive} className="w-full max-w-md mb-4" />
+
         <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-200/30 dark:shadow-black/40 p-6 sm:p-9">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                {mode === 'setup' ? t('auth.setupTitle') : t('auth.loginTitle')}
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {mode === 'setup' ? t('auth.setupSubtitle') : t('auth.loginSubtitle')}
-              </p>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{title}</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
             </div>
           </div>
 
@@ -113,35 +156,39 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="auth-username" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                {t('auth.username')}
-              </label>
-              <input
-                id="auth-username"
-                autoComplete="username"
-                autoFocus
-                type="text"
-                required
-                minLength={3}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder={t('auth.usernamePlaceholder')}
-                className="w-full px-3.5 py-2.5 border rounded-xl text-sm"
-              />
-            </div>
+            {mode !== 'force-password' && (
+              <div>
+                <label htmlFor="auth-username" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  {t('auth.username')}
+                </label>
+                <input
+                  id="auth-username"
+                  autoComplete="username"
+                  autoFocus
+                  type="text"
+                  required
+                  minLength={3}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={t('auth.usernamePlaceholder')}
+                  className="w-full px-3.5 py-2.5 border rounded-xl text-sm"
+                />
+              </div>
+            )}
 
             <div>
               <label htmlFor="auth-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                {t('auth.password')}
+                {mode === 'force-password' ? t('auth.newPassword') : t('auth.password')}
               </label>
               <div className="relative">
                 <input
                   id="auth-password"
-                  autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  autoFocus={mode === 'force-password'}
                   type={showPassword ? 'text' : 'password'}
                   required
                   minLength={8}
+                  maxLength={72}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t('auth.passwordPlaceholder')}
@@ -157,7 +204,7 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
               </div>
             </div>
 
-            {mode === 'setup' && (
+            {(mode === 'setup' || mode === 'force-password') && (
               <div>
                 <label htmlFor="auth-confirm" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   {t('auth.confirmPassword')}
@@ -168,6 +215,7 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
                   type="password"
                   required
                   minLength={8}
+                  maxLength={72}
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder={t('auth.confirmPasswordPlaceholder')}
@@ -182,10 +230,30 @@ export const AuthPage: React.FC<Props> = ({ mode, version = 'dev', onSuccess }) 
               className="w-full primary-button py-2.5 mt-2"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LockKeyhole className="w-4 h-4" />}
-              <span>{mode === 'setup' ? t('auth.setupSubmit') : t('auth.loginSubmit')}</span>
+              <span>{submitLabel}</span>
               {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
+
+          {mode === 'login' && (
+            <details className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+              <summary className="cursor-pointer select-none font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+                {t('auth.forgotTitle')}
+              </summary>
+              <p className="mt-2 leading-5">{t('auth.forgotDesc')}</p>
+            </details>
+          )}
+
+          {mode === 'force-password' && onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full mt-3 inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{t('auth.backToLogin')}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

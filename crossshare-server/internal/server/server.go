@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 
@@ -57,6 +58,9 @@ func NewRouter(p Params) *gin.Engine {
 
 	if p.AdminHandler != nil {
 		p.AdminHandler.SetVersion(string(p.Version))
+		if p.Config != nil {
+			p.AdminHandler.SetResetAdmin(p.Config.Server.ResetAdmin)
+		}
 	}
 
 	authMw := middleware.Auth(p.Settings)
@@ -106,31 +110,35 @@ func NewRouter(p Params) *gin.Engine {
 				protected.GET("/auth/me", p.AdminHandler.Me)
 				protected.PUT("/auth/password", p.AdminHandler.ChangePassword)
 
-				protected.GET("/dashboard/summary", p.AdminHandler.DashboardSummary)
+				active := protected.Group("")
+				active.Use(middleware.RequirePasswordChanged())
+				{
+					active.GET("/dashboard/summary", p.AdminHandler.DashboardSummary)
 
-				protected.GET("/settings", p.AdminHandler.GetSettings)
-				protected.PUT("/settings", p.AdminHandler.UpdateSettings)
-				protected.GET("/settings/jwt-secret", p.AdminHandler.RevealClientJWTSecret)
-				protected.POST("/settings/generate-jwt-secret", p.AdminHandler.GenerateClientJWTSecret)
+					active.GET("/settings", p.AdminHandler.GetSettings)
+					active.PUT("/settings", p.AdminHandler.UpdateSettings)
+					active.GET("/settings/jwt-secret", p.AdminHandler.RevealClientJWTSecret)
+					active.POST("/settings/generate-jwt-secret", p.AdminHandler.GenerateClientJWTSecret)
 
-				protected.GET("/admins", p.AdminHandler.ListAdmins)
-				protected.POST("/admins", p.AdminHandler.CreateAdmin)
-				protected.PUT("/admins/:id", p.AdminHandler.UpdateAdmin)
+					active.GET("/admins", p.AdminHandler.ListAdmins)
+					active.POST("/admins", p.AdminHandler.CreateAdmin)
+					active.PUT("/admins/:id", p.AdminHandler.UpdateAdmin)
 
-				protected.GET("/audit-logs", p.AdminHandler.ListAuditLogs)
-				protected.GET("/audit-logs/export", p.AdminHandler.ExportAuditLogs)
+					active.GET("/audit-logs", p.AdminHandler.ListAuditLogs)
+					active.GET("/audit-logs/export", p.AdminHandler.ExportAuditLogs)
 
-				protected.GET("/cron-jobs", p.AdminHandler.ListCronJobs)
-				protected.POST("/cron-jobs/preview", p.AdminHandler.PreviewCronSchedule)
-				protected.GET("/cron-jobs/:id/secrets", p.AdminHandler.RevealCronJobSecrets)
-				protected.PUT("/cron-jobs/:id", p.AdminHandler.UpdateCronJob)
-				protected.POST("/cron-jobs/:id/run", p.AdminHandler.RunCronJob)
-				protected.GET("/cron-jobs/:id/runs", p.AdminHandler.ListCronJobRuns)
-				protected.POST("/cron-jobs/:id/test-safekeep", p.AdminHandler.TestSafekeepConnection)
+					active.GET("/cron-jobs", p.AdminHandler.ListCronJobs)
+					active.POST("/cron-jobs/preview", p.AdminHandler.PreviewCronSchedule)
+					active.GET("/cron-jobs/:id/secrets", p.AdminHandler.RevealCronJobSecrets)
+					active.PUT("/cron-jobs/:id", p.AdminHandler.UpdateCronJob)
+					active.POST("/cron-jobs/:id/run", p.AdminHandler.RunCronJob)
+					active.GET("/cron-jobs/:id/runs", p.AdminHandler.ListCronJobRuns)
+					active.POST("/cron-jobs/:id/test-safekeep", p.AdminHandler.TestSafekeepConnection)
 
-				protected.POST("/migration/export", p.AdminHandler.MigrationExport)
-				protected.POST("/migration/inspect", p.AdminHandler.MigrationInspect)
-				protected.POST("/migration/import", p.AdminHandler.MigrationImport)
+					active.POST("/migration/export", p.AdminHandler.MigrationExport)
+					active.POST("/migration/inspect", p.AdminHandler.MigrationInspect)
+					active.POST("/migration/import", p.AdminHandler.MigrationImport)
+				}
 			}
 		}
 	}
@@ -203,6 +211,11 @@ func New(p Params) *http.Server {
 
 	p.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			if p.AdminHandler != nil {
+				if _, err := p.AdminHandler.BootstrapReset(ctx, os.Stdout); err != nil {
+					return err
+				}
+			}
 			p.Logger.Info().Str("version", string(p.Version)).Str("addr", addr).Msg("starting HTTP server")
 			go func() {
 				var err error

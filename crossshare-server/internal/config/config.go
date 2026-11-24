@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -25,12 +26,13 @@ type StorageConfig struct {
 }
 
 type ServerConfig struct {
-	Port      int    `mapstructure:"port" yaml:"port"`
-	TLSEnable bool   `mapstructure:"tls_enable" yaml:"tls_enable"`
-	CrtPath   string `mapstructure:"crt_path" yaml:"crt_path"`
-	KeyPath   string `mapstructure:"key_path" yaml:"key_path"`
-	DataDir   string `mapstructure:"data_dir" yaml:"data_dir"`
-	MasterKey string `mapstructure:"master_key" yaml:"master_key"`
+	Port       int    `mapstructure:"port" yaml:"port"`
+	TLSEnable  bool   `mapstructure:"tls_enable" yaml:"tls_enable"`
+	CrtPath    string `mapstructure:"crt_path" yaml:"crt_path"`
+	KeyPath    string `mapstructure:"key_path" yaml:"key_path"`
+	DataDir    string `mapstructure:"data_dir" yaml:"data_dir"`
+	MasterKey  string `mapstructure:"master_key" yaml:"master_key"`
+	ResetAdmin bool   `mapstructure:"reset_admin" yaml:"reset_admin"`
 }
 
 type CORSConfig struct {
@@ -50,6 +52,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 10431)
 	v.SetDefault("server.data_dir", "./data")
 	v.SetDefault("server.master_key", "")
+	v.SetDefault("server.reset_admin", false)
 	v.SetDefault("cors.allow_origins", []string{"*"})
 	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	v.SetDefault("cors.allow_headers", []string{
@@ -94,6 +97,11 @@ func New() (*Config, error) {
 	}
 	if strings.TrimSpace(cfg.Server.DataDir) == "" {
 		cfg.Server.DataDir = "./data"
+	}
+	if v := strings.TrimSpace(os.Getenv("RESET_ADMIN")); v != "" {
+		cfg.Server.ResetAdmin = !strings.EqualFold(v, "false") && v != "0"
+	} else if v := strings.TrimSpace(os.Getenv("reset_admin")); v != "" {
+		cfg.Server.ResetAdmin = !strings.EqualFold(v, "false") && v != "0"
 	}
 	return &cfg, nil
 }

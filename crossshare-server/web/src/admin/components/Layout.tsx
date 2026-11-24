@@ -16,6 +16,7 @@ import { useI18n } from '../contexts/I18nContext'
 import type { TranslationKey } from '../i18n/zh'
 import type { Admin } from '../types'
 import { PreferenceControls } from './PreferenceControls'
+import { ResetAdminBanner } from './ResetAdminBanner'
 
 export type NavTab = 'dashboard' | 'cron' | 'audit' | 'migration' | 'settings'
 
@@ -32,6 +33,7 @@ interface LayoutProps {
   onNavigate: (tab: NavTab) => void
   admin: Admin
   version?: string
+  resetAdminEnvActive?: boolean
   onLogout: () => void
   children: React.ReactNode
 }
@@ -41,6 +43,7 @@ export const Layout: React.FC<LayoutProps> = ({
   onNavigate,
   admin,
   version = 'dev',
+  resetAdminEnvActive = false,
   onLogout,
   children,
 }) => {
@@ -174,7 +177,10 @@ export const Layout: React.FC<LayoutProps> = ({
         </header>
 
         <main id="main-content" tabIndex={-1} className="min-w-0">
-          <div className="page-content max-w-[1440px] mx-auto px-4 py-6 sm:p-8">{children}</div>
+          <div className="page-content max-w-[1440px] mx-auto px-4 py-6 sm:p-8">
+            <ResetAdminBanner active={resetAdminEnvActive} className="mb-6" />
+            {children}
+          </div>
           <footer className="px-8 py-6 text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap gap-2 justify-between">
             <span>{t('app.footerLeft', { version: versionLabel })}</span>
             <span>{t('app.footerRight')}</span>

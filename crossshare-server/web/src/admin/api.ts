@@ -130,21 +130,22 @@ export function formatTime(iso?: string): string {
 }
 
 export const api = {
-  setupStatus: () => request<{ initialized: boolean; version: string }>('/setup/status'),
+  setupStatus: () =>
+    request<{ initialized: boolean; version: string; reset_admin_env_active?: boolean }>('/setup/status'),
   setupInit: (username: string, password: string) =>
-    request<{ admin: Admin; token: string }>('/setup/init', {
+    request<{ admin: Admin; token: string; reset_admin_env_active?: boolean }>('/setup/init', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
   login: (username: string, password: string) =>
-    request<{ admin: Admin; token: string }>('/auth/login', {
+    request<{ admin: Admin; token: string; reset_admin_env_active?: boolean }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
   logout: () => request<{ status: string }>('/auth/logout', { method: 'POST' }),
-  me: () => request<{ admin: Admin; version: string }>('/auth/me'),
+  me: () => request<{ admin: Admin; version: string; reset_admin_env_active?: boolean }>('/auth/me'),
   changePassword: (old_password: string, new_password: string) =>
-    request<{ status: string }>('/auth/password', {
+    request<{ status: string; admin?: Admin; reset_admin_env_active?: boolean }>('/auth/password', {
       method: 'PUT',
       body: JSON.stringify({ old_password, new_password }),
     }),

@@ -294,3 +294,20 @@ func RandomToken(nBytes int) (string, error) {
 	}
 	return hex.EncodeToString(buf), nil
 }
+
+// GenerateTemporaryPassword generates an unambiguous temporary admin password prefixed with "adm_".
+func GenerateTemporaryPassword(length int) (string, error) {
+	if length <= 0 {
+		length = 20
+	}
+	const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	b := make([]byte, length)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return "", err
+	}
+	out := make([]byte, length)
+	for i := range b {
+		out[i] = alphabet[int(b[i])%len(alphabet)]
+	}
+	return "adm_" + string(out), nil
+}

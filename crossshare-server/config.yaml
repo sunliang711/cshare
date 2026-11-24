@@ -5,6 +5,7 @@ server:
   key_path: ""
   data_dir: "./data"
   master_key: ""
+  reset_admin: false
 
 cors:
   allow_origins:

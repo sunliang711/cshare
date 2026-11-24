@@ -95,6 +95,23 @@ func CurrentAdmin(c *gin.Context) *db.Admin {
 	return nil
 }
 
+// RequirePasswordChanged blocks management API access until a temporary password has been replaced.
+func RequirePasswordChanged() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		admin := CurrentAdmin(c)
+		if admin != nil && admin.MustChangePassword {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": gin.H{
+					"code":    "password_change_required",
+					"message": "admin password change required before accessing management console",
+				},
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
 func abortAdminUnauthorized(c *gin.Context, msg string) {
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 		"error": gin.H{
