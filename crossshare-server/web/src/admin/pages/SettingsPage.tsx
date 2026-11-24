@@ -162,10 +162,12 @@ export const SettingsPage: React.FC = () => {
       setJwtSecretInput('')
       setClearJwtSecret(false)
       setAdmins(adm.items || [])
+    } catch (e: any) {
+      toast.error(e.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     load()

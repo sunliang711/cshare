@@ -84,6 +84,11 @@ export const zh = {
   'auth.actionFailed': '操作失败',
   'auth.setupSubmit': '创建管理员并进入',
   'auth.loginSubmit': '登录',
+  'auth.sessionExpiredTitle': '登录已过期',
+  'auth.sessionExpiredDesc': '当前管理员会话已失效，请重新登录以继续操作（当前页面状态将保留）。',
+  'auth.reloginSubmit': '重新登录并继续',
+  'auth.backToLogin': '退出到登录页',
+  'auth.reloginSuccess': '登录状态已恢复',
 
   'dash.title': '运行仪表盘',
   'dash.subtitle': '实时掌握分享存储状态、今日吞吐、P2P 会话与定时任务健康度',

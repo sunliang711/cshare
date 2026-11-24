@@ -103,10 +103,12 @@ export const CronPage: React.FC = () => {
     try {
       const res = await api.listCronJobs()
       setJobs(res.items || [])
+    } catch (e: any) {
+      toast.error(e.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     load()
@@ -176,6 +178,8 @@ export const CronPage: React.FC = () => {
     try {
       const res = await api.listCronRuns(job.id, 30)
       setRuns(res.items || [])
+    } catch (e: any) {
+      toast.error(e.message)
     } finally {
       setRunsLoading(false)
     }

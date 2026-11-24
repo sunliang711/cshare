@@ -4,6 +4,7 @@ import { api, formatBytes, formatTime } from '../api'
 import { Badge, StatusBadge } from '../components/Badge'
 import type { NavTab } from '../components/Layout'
 import { LoadingState } from '../components/Feedback'
+import { useToast } from '../components/Toast'
 import { useI18n } from '../contexts/I18nContext'
 import type { DashboardSummary } from '../types'
 
@@ -13,18 +14,25 @@ interface Props {
 
 export const DashboardPage: React.FC<Props> = ({ onNavigate }) => {
   const { t } = useI18n()
+  const toast = useToast()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
       const res = await api.dashboardSummary()
       setData(res)
+    } catch (e: any) {
+      const msg = e?.message || t('auth.actionFailed')
+      setLoadError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t, toast])
 
   useEffect(() => {
     load()
@@ -33,7 +41,17 @@ export const DashboardPage: React.FC<Props> = ({ onNavigate }) => {
   if (loading && !data) {
     return <LoadingState label={t('common.loading')} />
   }
-  if (!data) return null
+  if (!data) {
+    return (
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3">
+        <p className="text-sm text-slate-500 dark:text-slate-400">{loadError || t('common.noData')}</p>
+        <button type="button" onClick={load} className="secondary-button">
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>{t('common.refresh')}</span>
+        </button>
+      </div>
+    )
+  }
 
   const maxTraffic = Math.max(
     1,

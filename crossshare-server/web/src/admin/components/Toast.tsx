@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { CheckCircle2, Info, X, XCircle } from 'lucide-react'
 
 type ToastKind = 'success' | 'error' | 'info'
@@ -28,16 +28,19 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, 3500)
   }, [])
 
-  const value: ToastContextValue = {
-    success: (m) => push('success', m),
-    error: (m) => push('error', m),
-    info: (m) => push('info', m),
-  }
+  const value = useMemo<ToastContextValue>(
+    () => ({
+      success: (m) => push('success', m),
+      error: (m) => push('error', m),
+      info: (m) => push('info', m),
+    }),
+    [push],
+  )
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-sm">
+      <div className="fixed bottom-5 right-5 z-[80] flex flex-col gap-2 max-w-sm">
         {items.map((item) => (
           <div
             key={item.id}

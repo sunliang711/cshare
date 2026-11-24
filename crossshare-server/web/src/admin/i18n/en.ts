@@ -86,6 +86,11 @@ export const en: Record<TranslationKey, string> = {
   'auth.actionFailed': 'Action failed',
   'auth.setupSubmit': 'Create Admin & Enter',
   'auth.loginSubmit': 'Sign In',
+  'auth.sessionExpiredTitle': 'Session Expired',
+  'auth.sessionExpiredDesc': 'Your admin session has expired. Sign in again to continue without losing your page state.',
+  'auth.reloginSubmit': 'Sign In & Continue',
+  'auth.backToLogin': 'Sign Out',
+  'auth.reloginSuccess': 'Session restored',
 
   'dash.title': 'Dashboard',
   'dash.subtitle': 'Monitor storage health, today’s sharing traffic, active P2P sessions, and cron status',

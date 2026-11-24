@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { api } from './api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { api, getLastAuthedAt, setUnauthorizedHandler } from './api'
 import { LoadingState } from './components/Feedback'
 import { Layout, type NavTab } from './components/Layout'
-import { ToastProvider } from './components/Toast'
+import { ReauthModal } from './components/ReauthModal'
+import { ToastProvider, useToast } from './components/Toast'
 import { useI18n } from './contexts/I18nContext'
 import { AuditPage } from './pages/AuditPage'
 import { AuthPage } from './pages/AuthPages'
@@ -12,6 +13,8 @@ import { MigrationPage } from './pages/MigrationPage'
 import { SettingsPage } from './pages/SettingsPage'
 import type { Admin } from './types'
 
+const SESSION_CHECK_INTERVAL_MS = 60_000
+
 function initialTab(): NavTab {
   const p = window.location.pathname
   if (p.startsWith('/admin/cron')) return 'cron'
@@ -19,6 +22,107 @@ function initialTab(): NavTab {
   if (p.startsWith('/admin/migration')) return 'migration'
   if (p.startsWith('/admin/settings')) return 'settings'
   return 'dashboard'
+}
+
+interface AuthenticatedShellProps {
+  admin: Admin
+  version: string
+  tab: NavTab
+  onNavigate: (next: NavTab) => void
+  onAdminUpdate: (admin: Admin) => void
+  onSignedOut: () => void
+}
+
+function AuthenticatedShell({
+  admin,
+  version,
+  tab,
+  onNavigate,
+  onAdminUpdate,
+  onSignedOut,
+}: AuthenticatedShellProps) {
+  const { t } = useI18n()
+  const toast = useToast()
+  const [reauthOpen, setReauthOpen] = useState(false)
+  const reauthOpenRef = useRef(false)
+  const reauthResolverRef = useRef<((ok: boolean) => void) | null>(null)
+
+  const settleReauth = useCallback((ok: boolean) => {
+    reauthOpenRef.current = false
+    setReauthOpen(false)
+    const resolve = reauthResolverRef.current
+    reauthResolverRef.current = null
+    resolve?.(ok)
+  }, [])
+
+  useEffect(() => {
+    setUnauthorizedHandler(
+      () =>
+        new Promise<boolean>((resolve) => {
+          reauthResolverRef.current = resolve
+          reauthOpenRef.current = true
+          setReauthOpen(true)
+        }),
+    )
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      if (reauthOpenRef.current) return
+      if (Date.now() - getLastAuthedAt() < SESSION_CHECK_INTERVAL_MS) return
+      api
+        .me()
+        .then((me) => onAdminUpdate(me.admin))
+        .catch(() => {})
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      setUnauthorizedHandler(null)
+      settleReauth(false)
+    }
+  }, [onAdminUpdate, settleReauth])
+
+  const handleLogout = useCallback(async () => {
+    setUnauthorizedHandler(null)
+    settleReauth(false)
+    try {
+      await api.logout()
+    } catch {
+      // ignore network error on logout
+    }
+    onSignedOut()
+  }, [onSignedOut, settleReauth])
+
+  return (
+    <>
+      <Layout
+        active={tab}
+        onNavigate={onNavigate}
+        admin={admin}
+        version={version}
+        onLogout={handleLogout}
+      >
+        {tab === 'dashboard' && <DashboardPage onNavigate={onNavigate} />}
+        {tab === 'cron' && <CronPage />}
+        {tab === 'audit' && <AuditPage />}
+        {tab === 'migration' && <MigrationPage />}
+        {tab === 'settings' && <SettingsPage />}
+      </Layout>
+
+      <ReauthModal
+        open={reauthOpen}
+        defaultUsername={admin.username}
+        onSuccess={(nextAdmin) => {
+          onAdminUpdate(nextAdmin)
+          settleReauth(true)
+          toast.success(t('auth.reloginSuccess'))
+        }}
+        onCancel={() => settleReauth(false)}
+        onSignOut={handleLogout}
+      />
+    </>
+  )
 }
 
 export function App() {
@@ -64,6 +168,10 @@ export function App() {
     window.scrollTo({ top: 0 })
   }
 
+  const handleSignedOut = useCallback(() => {
+    setAdmin(null)
+  }, [])
+
   if (booting) {
     return (
       <div className="min-h-screen grid place-items-center bg-[#f5f7fb] dark:bg-[#0b1120]">
@@ -104,22 +212,14 @@ export function App() {
 
   return (
     <ToastProvider>
-      <Layout
-        active={tab}
-        onNavigate={navigate}
+      <AuthenticatedShell
         admin={admin}
         version={version}
-        onLogout={async () => {
-          await api.logout()
-          setAdmin(null)
-        }}
-      >
-        {tab === 'dashboard' && <DashboardPage onNavigate={navigate} />}
-        {tab === 'cron' && <CronPage />}
-        {tab === 'audit' && <AuditPage />}
-        {tab === 'migration' && <MigrationPage />}
-        {tab === 'settings' && <SettingsPage />}
-      </Layout>
+        tab={tab}
+        onNavigate={navigate}
+        onAdminUpdate={setAdmin}
+        onSignedOut={handleSignedOut}
+      />
     </ToastProvider>
   )
 }

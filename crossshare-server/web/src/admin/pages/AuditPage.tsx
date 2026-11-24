@@ -4,6 +4,7 @@ import { api, formatTime } from '../api'
 import { Badge, StatusBadge } from '../components/Badge'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, LoadingState } from '../components/Feedback'
+import { useToast } from '../components/Toast'
 import { useI18n } from '../contexts/I18nContext'
 import type { AuditLog } from '../types'
 
@@ -11,9 +12,11 @@ const PAGE_SIZE = 30
 
 export const AuditPage: React.FC = () => {
   const { t } = useI18n()
+  const toast = useToast()
   const [items, setItems] = useState<AuditLog[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState<'csv' | 'json' | null>(null)
   const [page, setPage] = useState(0)
 
   // Filters
@@ -54,10 +57,23 @@ export const AuditPage: React.FC = () => {
       const res = await api.listAuditLogs(buildFilterParams(true))
       setItems(res.items || [])
       setTotal(res.total || 0)
+    } catch (e: any) {
+      toast.error(e.message)
     } finally {
       setLoading(false)
     }
-  }, [buildFilterParams])
+  }, [buildFilterParams, toast])
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    setExporting(format)
+    try {
+      await api.exportAuditLogs(buildFilterParams(false), format)
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setExporting(null)
+    }
+  }
 
   useEffect(() => {
     load()
@@ -85,20 +101,24 @@ export const AuditPage: React.FC = () => {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('audit.subtitle')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={api.auditExportURL(buildFilterParams(false), 'csv')}
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => handleExport('csv')}
             className="secondary-button"
           >
             <Download className="w-3.5 h-3.5" />
             <span>{t('audit.exportCsv')}</span>
-          </a>
-          <a
-            href={api.auditExportURL(buildFilterParams(false), 'json')}
+          </button>
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => handleExport('json')}
             className="secondary-button"
           >
             <Download className="w-3.5 h-3.5" />
             <span>{t('audit.exportJson')}</span>
-          </a>
+          </button>
           <button type="button" onClick={load} className="secondary-button">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>{t('common.refresh')}</span>

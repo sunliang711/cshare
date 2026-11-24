@@ -19,28 +19,95 @@ export class APIError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+type UnauthorizedHandler = () => Promise<boolean>
+
+let unauthorizedHandler: UnauthorizedHandler | null = null
+let reauthPromise: Promise<boolean> | null = null
+let lastAuthedAt = 0
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler
+}
+
+export function getLastAuthedAt(): number {
+  return lastAuthedAt
+}
+
+function shouldHandleUnauthorized(path: string): boolean {
+  return (
+    path !== '/auth/login' &&
+    path !== '/auth/logout' &&
+    path !== '/setup/init' &&
+    path !== '/setup/status'
+  )
+}
+
+async function ensureReauthenticated(): Promise<boolean> {
+  if (!unauthorizedHandler) return false
+  if (!reauthPromise) {
+    reauthPromise = unauthorizedHandler().finally(() => {
+      reauthPromise = null
+    })
+  }
+  return reauthPromise
+}
+
+async function parseAPIError(res: Response): Promise<APIError> {
+  let errBody: any = null
+  try {
+    errBody = await res.json()
+  } catch {
+    // ignore
+  }
+  const code = errBody?.error?.code || 'http_error'
+  const message = errBody?.error?.message || `HTTP ${res.status}`
+  return new APIError(res.status, code, message)
+}
+
+async function fetchWithAuthRetry(path: string, init?: RequestInit, retried = false): Promise<Response> {
   const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData
   const res = await fetch(`/admin/api/v1${path}`, {
     credentials: 'include',
     ...init,
     headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(isFormData || !init?.body ? {} : { 'Content-Type': 'application/json' }),
       ...(init?.headers || {}),
     },
   })
   if (!res.ok) {
-    let errBody: any = null
-    try {
-      errBody = await res.json()
-    } catch {
-      // ignore
+    if (res.status === 401 && !retried && shouldHandleUnauthorized(path)) {
+      const recovered = await ensureReauthenticated()
+      if (recovered) {
+        return fetchWithAuthRetry(path, init, true)
+      }
     }
-    const code = errBody?.error?.code || 'http_error'
-    const message = errBody?.error?.message || `HTTP ${res.status}`
-    throw new APIError(res.status, code, message)
+    throw await parseAPIError(res)
   }
+  if (path !== '/setup/status' && path !== '/auth/logout') {
+    lastAuthedAt = Date.now()
+  }
+  return res
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetchWithAuthRetry(path, init)
   return (await res.json()) as T
+}
+
+async function downloadFile(path: string, fallbackFilename: string, init?: RequestInit): Promise<void> {
+  const res = await fetchWithAuthRetry(path, init)
+  const blob = await res.blob()
+  const disp = res.headers.get('Content-Disposition') || ''
+  const match = /filename="([^"]+)"/.exec(disp)
+  const filename = match?.[1] || fallbackFilename
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export function formatBytes(bytes: number): string {
@@ -107,12 +174,12 @@ export const api = {
     }
     return request<{ items: AuditLog[]; total: number }>(`/audit-logs?${qs.toString()}`)
   },
-  auditExportURL: (params: Record<string, string | undefined>, format: 'csv' | 'json') => {
+  exportAuditLogs: (params: Record<string, string | undefined>, format: 'csv' | 'json') => {
     const qs = new URLSearchParams({ format })
     for (const [k, v] of Object.entries(params)) {
       if (v) qs.set(k, v)
     }
-    return `/admin/api/v1/audit-logs/export?${qs.toString()}`
+    return downloadFile(`/audit-logs/export?${qs.toString()}`, `crossshare-audit-logs.${format}`)
   },
 
   listCronJobs: () => request<{ items: CronJob[] }>('/cron-jobs'),
@@ -140,41 +207,16 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  exportMigration: async (payload: {
+  exportMigration: (payload: {
     include_admins: boolean
     include_audit_logs: boolean
     include_cron_runs: boolean
     passphrase: string
-  }) => {
-    const res = await fetch('/admin/api/v1/migration/export', {
+  }) =>
+    downloadFile('/migration/export', 'cshare-migration.csbundle', {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    })
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`
-      try {
-        const j = await res.json()
-        if (j?.error?.message) msg = j.error.message
-      } catch {
-        // ignore
-      }
-      throw new Error(msg)
-    }
-    const blob = await res.blob()
-    const disp = res.headers.get('Content-Disposition') || ''
-    const match = /filename="([^"]+)"/.exec(disp)
-    const filename = match?.[1] || 'cshare-migration.csbundle'
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  },
+    }),
   inspectMigration: (fd: FormData) =>
     request<InspectSummary>('/migration/inspect', { method: 'POST', body: fd }),
   importMigration: (fd: FormData) =>
