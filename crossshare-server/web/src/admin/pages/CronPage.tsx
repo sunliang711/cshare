@@ -20,13 +20,13 @@ const JOB_I18N: Record<string, { name: TranslationKey; desc: TranslationKey }> =
 }
 
 const PRESETS: Array<{ labelKey: TranslationKey; value: string }> = [
+  { labelKey: 'cron.preset.every1m', value: '* * * * *' },
   { labelKey: 'cron.preset.every5m', value: '*/5 * * * *' },
+  { labelKey: 'cron.preset.every10m', value: '*/10 * * * *' },
   { labelKey: 'cron.preset.hourly', value: '0 * * * *' },
-  { labelKey: 'cron.preset.daily02', value: '0 2 * * *' },
-  { labelKey: 'cron.preset.daily03', value: '0 3 * * *' },
-  { labelKey: 'cron.preset.weeklySun03', value: '0 3 * * 0' },
-  { labelKey: 'cron.preset.weeklyMon05', value: '0 5 * * 1' },
-  { labelKey: 'cron.preset.monthly', value: '0 4 1 * *' },
+  { labelKey: 'cron.preset.daily', value: '0 0 * * *' },
+  { labelKey: 'cron.preset.weekly', value: '0 0 * * 1' },
+  { labelKey: 'cron.preset.monthly', value: '0 0 1 * *' },
   { labelKey: 'cron.preset.custom', value: 'custom' },
 ]
 
@@ -66,6 +66,7 @@ export const CronPage: React.FC = () => {
   // Edit drawer
   const [editingJob, setEditingJob] = useState<CronJob | null>(null)
   const [cronExpr, setCronExpr] = useState('')
+  const [customPreset, setCustomPreset] = useState(false)
   const [enabled, setEnabled] = useState(true)
   const [timeoutSec, setTimeoutSec] = useState(120)
   const [previewRuns, setPreviewRuns] = useState<string[]>([])
@@ -141,6 +142,7 @@ export const CronPage: React.FC = () => {
   const openEdit = (job: CronJob) => {
     setEditingJob(job)
     setCronExpr(job.cron_expr)
+    setCustomPreset(false)
     setEnabled(job.enabled)
     setTimeoutSec(job.timeout_sec || 120)
     setPreviewRuns(job.next_runs || [])
@@ -291,7 +293,7 @@ export const CronPage: React.FC = () => {
     }
   }
 
-  const selectedPreset = PRESETS.some((p) => p.value === cronExpr) ? cronExpr : 'custom'
+  const selectedPreset = customPreset || !PRESETS.some((p) => p.value === cronExpr) ? 'custom' : cronExpr
 
   return (
     <div className="space-y-6">
@@ -452,7 +454,12 @@ export const CronPage: React.FC = () => {
                 <select
                   value={selectedPreset}
                   onChange={(e) => {
-                    if (e.target.value !== 'custom') setCronExpr(e.target.value)
+                    if (e.target.value === 'custom') {
+                      setCustomPreset(true)
+                    } else {
+                      setCustomPreset(false)
+                      setCronExpr(e.target.value)
+                    }
                   }}
                   className="w-full px-3 py-2 border rounded-lg text-xs"
                 >
@@ -486,7 +493,10 @@ export const CronPage: React.FC = () => {
                 type="text"
                 required
                 value={cronExpr}
-                onChange={(e) => setCronExpr(e.target.value)}
+                onChange={(e) => {
+                  setCustomPreset(false)
+                  setCronExpr(e.target.value)
+                }}
                 className="w-full px-3 py-2 border rounded-lg font-mono text-xs"
               />
               {previewErr ? (
