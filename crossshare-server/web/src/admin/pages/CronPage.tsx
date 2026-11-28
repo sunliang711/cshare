@@ -55,7 +55,7 @@ function safeParse(raw?: string): Record<string, any> {
   }
 }
 
-export const CronPage: React.FC = () => {
+export const CronPage: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
   const { t, lang } = useI18n()
   const toast = useToast()
 
@@ -349,6 +349,7 @@ export const CronPage: React.FC = () => {
                         <button
                           type="button"
                           role="switch"
+                          disabled={readOnly}
                           aria-checked={job.enabled}
                           onClick={() => handleToggleEnabled(job)}
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
@@ -381,7 +382,7 @@ export const CronPage: React.FC = () => {
                         <div className="flex flex-wrap items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            disabled={runningId === job.id}
+                            disabled={readOnly || runningId === job.id}
                             onClick={() => handleRunNow(job)}
                             className="secondary-button py-1.5 px-2.5 text-xs"
                           >
@@ -394,6 +395,7 @@ export const CronPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
+                            disabled={readOnly}
                             onClick={() => openEdit(job)}
                             className="secondary-button py-1.5 px-2.5 text-xs"
                           >

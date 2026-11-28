@@ -76,7 +76,7 @@ func setupFullApp(t *testing.T, skServer *httptest.Server) *testHarness {
 	}
 	sched := scheduler.NewEngine(dbStore, memStore, p2pSvc, settingsMgr, auditRec, cipher, migSvc, skClient, logger)
 
-	adminH := handler.NewAdminHandler(dbStore, cipher, settingsMgr, auditRec, sched, migSvc, memStore, p2pSvc, logger)
+	adminH := handler.NewAdminHandler(dbStore, cipher, settingsMgr, auditRec, sched, migSvc, memStore, p2pSvc, service.NewAdminService(dbStore, cipher), logger)
 	rl := middleware.NewRateLimiter(settingsMgr)
 
 	r := server.NewRouter(server.Params{

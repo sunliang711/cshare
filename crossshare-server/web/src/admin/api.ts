@@ -1,5 +1,6 @@
 import type {
   Admin,
+  AdminSession,
   AuditLog,
   CronJob,
   CronJobRun,
@@ -162,10 +163,13 @@ export const api = {
   generateJWTSecret: () =>
     request<{ client_jwt_secret: string }>('/settings/generate-jwt-secret', { method: 'POST' }),
 
+  listSessions: () => request<{ sessions: AdminSession[] }>('/auth/sessions'),
+  revokeSession: (id: string) => request<{ status: string }>(`/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   listAdmins: () => request<{ items: Admin[] }>('/admins'),
-  createAdmin: (payload: { username: string; password: string; is_active: boolean }) =>
+  createAdmin: (payload: { username: string; password: string; role: Admin['role']; current_password: string }) =>
     request<Admin>('/admins', { method: 'POST', body: JSON.stringify(payload) }),
-  updateAdmin: (id: string, payload: { is_active: boolean; password?: string }) =>
+  updateAdmin: (id: string, payload: { is_active?: boolean; role?: Admin['role']; password?: string; current_password: string }) =>
     request<Admin>(`/admins/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
   listAuditLogs: (params: Record<string, string | number | undefined>) => {

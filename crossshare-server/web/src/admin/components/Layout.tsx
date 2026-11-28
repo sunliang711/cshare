@@ -11,6 +11,7 @@ import {
   Share2,
   ShieldCheck,
   X,
+  Users,
 } from 'lucide-react'
 import { useI18n } from '../contexts/I18nContext'
 import type { TranslationKey } from '../i18n/zh'
@@ -18,13 +19,14 @@ import type { Admin } from '../types'
 import { PreferenceControls } from './PreferenceControls'
 import { ResetAdminBanner } from './ResetAdminBanner'
 
-export type NavTab = 'dashboard' | 'cron' | 'audit' | 'migration' | 'settings'
+export type NavTab = 'dashboard' | 'cron' | 'audit' | 'migration' | 'settings' | 'accounts'
 
 const navItems: Array<{ id: NavTab; labelKey: TranslationKey; icon: React.ReactNode }> = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <Activity className="w-4 h-4" /> },
   { id: 'cron', labelKey: 'nav.cron', icon: <Clock className="w-4 h-4" /> },
   { id: 'audit', labelKey: 'nav.audit', icon: <ScrollText className="w-4 h-4" /> },
   { id: 'migration', labelKey: 'nav.migration', icon: <ArrowLeftRight className="w-4 h-4" /> },
+  { id: 'accounts', labelKey: 'nav.accounts', icon: <Users className="w-4 h-4" /> },
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="w-4 h-4" /> },
 ]
 
@@ -88,7 +90,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
 
         <nav aria-label={t('nav.mainAria')} className="flex-1 px-4 py-4 overflow-y-auto">
-          {navItems.map((item, index) => {
+          {navItems.filter((item) => admin.role === 'admin' || !['settings', 'migration'].includes(item.id)).map((item, index) => {
             const isActive = active === item.id
             return (
               <React.Fragment key={item.id}>
@@ -127,7 +129,7 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
           <div className="truncate flex-1">
             <div className="text-white font-medium truncate">{admin.username}</div>
-            <div className="text-slate-500 mt-0.5">{t('app.roleAdmin')}</div>
+            <div className="text-slate-500 mt-0.5">{t(admin.role === 'admin' ? 'app.roleAdmin' : 'app.roleViewer')}</div>
           </div>
           <button
             onClick={onLogout}

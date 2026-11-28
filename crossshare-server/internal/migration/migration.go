@@ -77,6 +77,8 @@ type AdminRecord struct {
 	Username     string     `json:"username"`
 	PasswordHash string     `json:"password_hash"`
 	IsActive     bool       `json:"is_active"`
+	Role         string     `json:"role,omitempty"`
+	MustChange   bool       `json:"must_change_password,omitempty"`
 	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
@@ -178,6 +180,8 @@ func (s *Service) Export(ctx context.Context, opts ExportOptions) ([]byte, error
 				Username:     a.Username,
 				PasswordHash: a.PasswordHash,
 				IsActive:     a.IsActive,
+				Role:         a.Role,
+				MustChange:   a.MustChangePassword,
 				LastLoginAt:  a.LastLoginAt,
 				CreatedAt:    a.CreatedAt,
 				UpdatedAt:    a.UpdatedAt,
@@ -480,11 +484,18 @@ func (s *Service) Import(ctx context.Context, blob []byte, opts ImportOptions) (
 			}
 		}
 		for _, a := range b.Data.Admins {
+			// 旧迁移包没有角色字段，保持原有管理员权限。
+			if a.Role == "" {
+				a.Role = db.RoleAdmin
+			}
+			if a.Role != db.RoleAdmin && a.Role != db.RoleViewer {
+				return nil, fmt.Errorf("invalid account role %q", a.Role)
+			}
 			if mode == "merge" && conflict == "skip" {
 				res, err := tx.ExecContext(ctx,
-					`INSERT OR IGNORE INTO admins(id, username, password_hash, is_active, last_login_at, created_at, updated_at)
-					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-					a.ID, a.Username, a.PasswordHash, boolToInt(a.IsActive), a.LastLoginAt, a.CreatedAt, a.UpdatedAt,
+					`INSERT OR IGNORE INTO admins(id, username, password_hash, is_active, role, must_change_password, last_login_at, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					a.ID, a.Username, a.PasswordHash, boolToInt(a.IsActive), a.Role, boolToInt(a.MustChange), a.LastLoginAt, a.CreatedAt, a.UpdatedAt,
 				)
 				if err != nil {
 					return nil, err
@@ -497,9 +508,9 @@ func (s *Service) Import(ctx context.Context, blob []byte, opts ImportOptions) (
 				err := tx.QueryRowContext(ctx, `SELECT id FROM admins WHERE id = ? OR username = ? LIMIT 1`, a.ID, a.Username).Scan(&existingID)
 				if errors.Is(err, sql.ErrNoRows) {
 					if _, err := tx.ExecContext(ctx,
-						`INSERT INTO admins(id, username, password_hash, is_active, last_login_at, created_at, updated_at)
-						 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-						a.ID, a.Username, a.PasswordHash, boolToInt(a.IsActive), a.LastLoginAt, a.CreatedAt, a.UpdatedAt,
+						`INSERT INTO admins(id, username, password_hash, is_active, role, must_change_password, last_login_at, created_at, updated_at)
+						 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+						a.ID, a.Username, a.PasswordHash, boolToInt(a.IsActive), a.Role, boolToInt(a.MustChange), a.LastLoginAt, a.CreatedAt, a.UpdatedAt,
 					); err != nil {
 						return nil, err
 					}
@@ -508,14 +519,26 @@ func (s *Service) Import(ctx context.Context, blob []byte, opts ImportOptions) (
 					return nil, err
 				} else {
 					if _, err := tx.ExecContext(ctx,
-						`UPDATE admins SET username = ?, password_hash = ?, is_active = ?, last_login_at = ?, updated_at = ? WHERE id = ?`,
-						a.Username, a.PasswordHash, boolToInt(a.IsActive), a.LastLoginAt, a.UpdatedAt, existingID,
+						`UPDATE admins SET username = ?, password_hash = ?, is_active = ?, role = ?, must_change_password = ?, last_login_at = ?, updated_at = ? WHERE id = ?`,
+						a.Username, a.PasswordHash, boolToInt(a.IsActive), a.Role, boolToInt(a.MustChange), a.LastLoginAt, a.UpdatedAt, existingID,
 					); err != nil {
 						return nil, err
 					}
 					applied.Admins++
 				}
 			}
+		}
+
+		var activeAdmins int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM admins WHERE role = 'admin' AND is_active = 1`).Scan(&activeAdmins); err != nil {
+			return nil, err
+		}
+		if activeAdmins == 0 {
+			return nil, db.ErrLastAdmin
+		}
+		// 账号导入后清空目标环境会话，会话凭证不会随迁移包导出。
+		if _, err := tx.ExecContext(ctx, `DELETE FROM admin_sessions`); err != nil {
+			return nil, err
 		}
 	}
 

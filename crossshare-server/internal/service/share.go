@@ -25,6 +25,7 @@ var Module = fx.Options(
 	fx.Provide(
 		NewShareService,
 		NewP2PService,
+		NewAdminService,
 	),
 )
 

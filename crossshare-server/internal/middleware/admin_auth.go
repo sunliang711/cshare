@@ -25,14 +25,14 @@ func PasswordVersion(passwordHash string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-func SignAdminToken(secret []byte, admin *db.Admin) (string, error) {
-	now := time.Now().UTC()
+func SignAdminToken(secret []byte, admin *db.Admin, session *db.AdminSession) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":      admin.ID,
 		"username": admin.Username,
 		"pwd_v":    PasswordVersion(admin.PasswordHash),
-		"iat":      now.Unix(),
-		"exp":      now.Add(24 * time.Hour).Unix(),
+		"jti":      session.ID,
+		"iat":      session.CreatedAt.Unix(),
+		"exp":      session.ExpiresAt.Unix(),
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return tok.SignedString(secret)
@@ -57,7 +57,7 @@ func AdminAuth(store *db.Store, secret []byte) gin.HandlerFunc {
 				return nil, jwt.ErrSignatureInvalid
 			}
 			return secret, nil
-		})
+		}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 		if err != nil || !tok.Valid {
 			abortAdminUnauthorized(c, "invalid or expired admin session")
 			return
@@ -81,6 +81,21 @@ func AdminAuth(store *db.Store, secret []byte) gin.HandlerFunc {
 			return
 		}
 
+		session, err := store.GetAdminSession(c.Request.Context(), tokenStr)
+		sessionID, _ := claims["jti"].(string)
+		now := time.Now().UTC()
+		if err != nil || sessionID == "" || session.ID != sessionID || session.AdminID != admin.ID || !now.Before(session.ExpiresAt) {
+			abortAdminUnauthorized(c, "invalid or revoked admin session")
+			return
+		}
+		if now.Sub(session.LastSeenAt) >= time.Minute {
+			if err := store.TouchAdminSession(c.Request.Context(), session.ID, now); err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "session_error", "message": "failed to update session activity"}})
+				return
+			}
+			session.LastSeenAt = now
+		}
+		c.Set("admin_session", session)
 		c.Set("admin", admin)
 		c.Next()
 	}
@@ -119,4 +134,42 @@ func abortAdminUnauthorized(c *gin.Context, msg string) {
 			"message": msg,
 		},
 	})
+}
+
+func CurrentAdminSession(c *gin.Context) *db.AdminSession {
+	if value, ok := c.Get("admin_session"); ok {
+		if session, ok := value.(*db.AdminSession); ok {
+			return session
+		}
+	}
+	return nil
+}
+
+// AdminPermissions 将只读运维限制为明确允许的查询及本人会话操作。
+func AdminPermissions() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		admin := CurrentAdmin(c)
+		if admin != nil && admin.Role == db.RoleAdmin {
+			c.Next()
+			return
+		}
+		path := strings.TrimPrefix(c.FullPath(), "/admin/api/v1")
+		allowed := false
+		switch c.Request.Method {
+		case http.MethodGet:
+			allowed = path == "/auth/me" || path == "/auth/sessions" || path == "/dashboard/summary" ||
+				path == "/audit-logs" || path == "/audit-logs/export" || path == "/cron-jobs" || path == "/cron-jobs/:id/runs"
+		case http.MethodPost:
+			allowed = path == "/auth/logout" || path == "/cron-jobs/preview"
+		case http.MethodPut:
+			allowed = path == "/auth/password"
+		case http.MethodDelete:
+			allowed = path == "/auth/sessions/:id"
+		}
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "forbidden", "message": "administrator role required"}})
+			return
+		}
+		c.Next()
+	}
 }

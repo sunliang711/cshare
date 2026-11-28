@@ -8,12 +8,20 @@ import (
 var (
 	ErrNotFound           = errors.New("record not found")
 	ErrAlreadyInitialized = errors.New("admin already initialized")
+	ErrUsernameTaken      = errors.New("username already exists")
+	ErrLastAdmin          = errors.New("cannot disable or demote the last active administrator")
+)
+
+const (
+	RoleAdmin  = "admin"
+	RoleViewer = "viewer"
 )
 
 type Admin struct {
 	ID                 string     `json:"id"`
 	Username           string     `json:"username"`
 	PasswordHash       string     `json:"-"`
+	Role               string     `json:"role"`
 	IsActive           bool       `json:"is_active"`
 	MustChangePassword bool       `json:"must_change_password"`
 	LastLoginAt        *time.Time `json:"last_login_at,omitempty"`

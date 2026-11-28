@@ -5,6 +5,7 @@ import { Layout, type NavTab } from './components/Layout'
 import { ReauthModal } from './components/ReauthModal'
 import { ToastProvider, useToast } from './components/Toast'
 import { useI18n } from './contexts/I18nContext'
+import { AccountsPage } from './pages/AccountsPage'
 import { AuditPage } from './pages/AuditPage'
 import { AuthPage } from './pages/AuthPages'
 import { CronPage } from './pages/CronPage'
@@ -20,6 +21,7 @@ function initialTab(): NavTab {
   if (p.startsWith('/admin/cron')) return 'cron'
   if (p.startsWith('/admin/audit')) return 'audit'
   if (p.startsWith('/admin/migration')) return 'migration'
+  if (p.startsWith('/admin/accounts')) return 'accounts'
   if (p.startsWith('/admin/settings')) return 'settings'
   return 'dashboard'
 }
@@ -85,6 +87,10 @@ function AuthenticatedShell({
     }
   }, [onAdminUpdate, settleReauth])
 
+  useEffect(() => {
+    if (admin.role !== 'admin' && (tab === 'settings' || tab === 'migration')) onNavigate('dashboard')
+  }, [admin.role, tab, onNavigate])
+
   const handleLogout = useCallback(async () => {
     setUnauthorizedHandler(null)
     settleReauth(false)
@@ -107,10 +113,11 @@ function AuthenticatedShell({
         onLogout={handleLogout}
       >
         {tab === 'dashboard' && <DashboardPage onNavigate={onNavigate} />}
-        {tab === 'cron' && <CronPage />}
+        {tab === 'cron' && <CronPage key={admin.role} readOnly={admin.role !== 'admin'} />}
         {tab === 'audit' && <AuditPage />}
-        {tab === 'migration' && <MigrationPage />}
-        {tab === 'settings' && <SettingsPage />}
+        {tab === 'migration' && admin.role === 'admin' && <MigrationPage />}
+        {tab === 'settings' && admin.role === 'admin' && <SettingsPage />}
+        {tab === 'accounts' && <AccountsPage key={`${admin.id}:${admin.role}`} admin={admin} onAdminUpdate={onAdminUpdate} onSignedOut={onSignedOut} />}
       </Layout>
 
       <ReauthModal

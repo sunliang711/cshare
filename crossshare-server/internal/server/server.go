@@ -102,12 +102,14 @@ func NewRouter(p Params) *gin.Engine {
 			adminAPI.GET("/setup/status", p.AdminHandler.SetupStatus)
 			adminAPI.POST("/setup/init", p.AdminHandler.SetupInit)
 			adminAPI.POST("/auth/login", p.AdminHandler.Login)
-			adminAPI.POST("/auth/logout", p.AdminHandler.Logout)
 
 			protected := adminAPI.Group("")
-			protected.Use(adminAuthMw)
+			protected.Use(adminAuthMw, middleware.AdminPermissions())
 			{
+				protected.POST("/auth/logout", p.AdminHandler.Logout)
 				protected.GET("/auth/me", p.AdminHandler.Me)
+				protected.GET("/auth/sessions", p.AdminHandler.ListSessions)
+				protected.DELETE("/auth/sessions/:id", p.AdminHandler.RevokeSession)
 				protected.PUT("/auth/password", p.AdminHandler.ChangePassword)
 
 				active := protected.Group("")
